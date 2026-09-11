@@ -8,7 +8,7 @@ window.SIMPLIFEX_CONFIG = {
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtdGJhdHp1aGpkbHphc3dha2xyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNTkxMzEsImV4cCI6MjEwNDczNTEzMX0.BpITG3uoZDB1FHpZyx2778km6g1SlavJieMffR3r4kw',
 
   // Public Key do Mercado Pago (essa sim é pública, usada no SDK do front-end)
-  MERCADOPAGO_PUBLIC_KEY: 'TEST-11f0d372-df5e-4b04-ad22-908ef364a358',
+  MERCADOPAGO_PUBLIC_KEY: 'APP_USR-a564c8ae-88e3-4342-be22-09aa52b7d880',
 
   // URLs das Edge Functions do Supabase (após deploy)
   FN_CREATE_PREAPPROVAL: 'https://umtbatzuhjdlzaswaklr.functions.supabase.co/create-preapproval',
