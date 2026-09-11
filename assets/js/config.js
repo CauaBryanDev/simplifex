@@ -4,7 +4,7 @@
  * do Supabase — essas ficam só nas Edge Functions (ambiente de servidor).
  */
 window.SIMPLIFEX_CONFIG = {
-  SUPABASE_URL: 'https://umtbatzuhjdlzaswaklr.supabase.co/rest/v1/',
+  SUPABASE_URL: 'https://umtbatzuhjdlzaswaklr.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtdGJhdHp1aGpkbHphc3dha2xyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNTkxMzEsImV4cCI6MjEwNDczNTEzMX0.BpITG3uoZDB1FHpZyx2778km6g1SlavJieMffR3r4kw',
 
   // Public Key do Mercado Pago (essa sim é pública, usada no SDK do front-end)
