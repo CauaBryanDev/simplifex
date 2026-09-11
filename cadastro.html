@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Criar conta — Simplifex</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="container">
+    <a href="/" class="brand"><span class="brand-mark">S</span>Simplifex</a>
+    <div class="nav-links">
+      <a href="/login.html">Já tenho conta</a>
+    </div>
+  </div>
+</nav>
+
+<section class="section">
+  <div class="container">
+    <div class="form-card" style="max-width:520px;">
+      <h2>Criar sua conta</h2>
+      <div class="form-error" id="erro"></div>
+      <div class="form-success" id="sucesso"></div>
+      <form id="form-cadastro">
+        <div class="field">
+          <label for="nome">Nome completo</label>
+          <input type="text" id="nome" name="nome" required autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="email">E-mail</label>
+          <input type="email" id="email" name="email" required autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="senha">Senha</label>
+          <input type="password" id="senha" name="senha" required minlength="6" autocomplete="new-password">
+          <div class="field-hint">Mínimo de 6 caracteres.</div>
+        </div>
+        <div class="field">
+          <label for="cnpj">CNPJ</label>
+          <input type="text" id="cnpj" name="cnpj" placeholder="00.000.000/0000-00">
+        </div>
+        <div class="field">
+          <label for="regime">Regime</label>
+          <select id="regime" name="regime" required>
+            <option value="MEI">MEI</option>
+            <option value="ME">ME (Microempresa)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="uf">Estado (UF)</label>
+          <select id="uf" name="uf" data-uf required></select>
+        </div>
+        <div class="field">
+          <label for="municipio">Município</label>
+          <input type="text" id="municipio" name="municipio" required>
+        </div>
+        <div class="field">
+          <label for="plano">Plano</label>
+          <select id="plano" name="plano" required>
+            <option value="mei">MEI — R$ 27,90/mês</option>
+            <option value="me">ME — R$ 79,90/mês</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Criar conta e ir para pagamento</button>
+      </form>
+      <p style="margin-top:16px;font-size:0.85rem;color:var(--ink-soft);text-align:center;">
+        Ao criar a conta você concorda com os Termos de Uso e a Política de Privacidade.
+      </p>
+    </div>
+  </div>
+</section>
+
+<script src="/assets/js/config.js"></script>
+<script type="module">
+  import { cadastrar } from '/assets/js/auth.js';
+  import { assinarPlano } from '/assets/js/checkout.js';
+
+  const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+  const ufSelect = document.getElementById('uf');
+  UFS.forEach(uf => {
+    const opt = document.createElement('option');
+    opt.value = uf; opt.textContent = uf;
+    ufSelect.appendChild(opt);
+  });
+
+  // Pré-seleciona o plano vindo da landing page (?plano=mei|me)
+  const params = new URLSearchParams(window.location.search);
+  const planoParam = params.get('plano');
+  if (planoParam) document.getElementById('plano').value = planoParam;
+
+  const form = document.getElementById('form-cadastro');
+  const erroEl = document.getElementById('erro');
+  const sucessoEl = document.getElementById('sucesso');
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    erroEl.style.display = 'none'; sucessoEl.style.display = 'none';
+    const btn = form.querySelector('button');
+    btn.disabled = true; btn.textContent = 'Criando conta…';
+
+    try {
+      await cadastrar({
+        email: form.email.value,
+        senha: form.senha.value,
+        nomeCompleto: form.nome.value,
+        cnpj: form.cnpj.value,
+        regimeTributario: form.regime.value,
+        uf: form.uf.value,
+        municipio: form.municipio.value,
+      });
+
+      sucessoEl.textContent = 'Conta criada! Redirecionando para o pagamento…';
+      sucessoEl.style.display = 'block';
+      btn.textContent = 'Indo para o pagamento…';
+
+      setTimeout(() => assinarPlano(form.plano.value, btn), 800);
+    } catch (err) {
+      erroEl.textContent = err.message.includes('already registered')
+        ? 'Este e-mail já está cadastrado. Tente entrar.'
+        : err.message;
+      erroEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Criar conta e ir para pagamento';
+    }
+  });
+</script>
+</body>
+</html>

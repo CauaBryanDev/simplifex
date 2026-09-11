@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assinatura — Simplifex</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <a href="/" class="brand"><span class="brand-mark">S</span>Simplifex</a>
+    <nav>
+      <a class="side-link" href="/dashboard.html">Painel</a>
+      <a class="side-link" href="/calculadora.html">Nova simulação</a>
+      <a class="side-link active" href="/assinatura.html">Assinatura</a>
+      <a class="side-link" href="#" id="btn-sair">Sair</a>
+    </nav>
+    <div class="side-foot" id="user-nome">—</div>
+  </aside>
+
+  <main class="main">
+    <h2>Sua assinatura</h2>
+    <p>Gerencie seu plano e forma de pagamento — tudo processado com segurança pelo Mercado Pago.</p>
+
+    <div class="card" style="max-width:560px;margin-bottom:var(--space-6);">
+      <div id="assinatura-status">Carregando…</div>
+    </div>
+
+    <div class="grid-2" style="max-width:760px;">
+      <div class="plan">
+        <div class="plan-name">MEI</div>
+        <div class="plan-price">R$ 27,90<small> /mês</small></div>
+        <button class="btn btn-primary btn-block" onclick="SimplifexCheckout.assinarPlano('mei', this)">Assinar / trocar para MEI</button>
+      </div>
+      <div class="plan">
+        <div class="plan-name">ME</div>
+        <div class="plan-price">R$ 79,90<small> /mês</small></div>
+        <button class="btn btn-primary btn-block" onclick="SimplifexCheckout.assinarPlano('me', this)">Assinar / trocar para ME</button>
+      </div>
+    </div>
+
+    <button class="btn btn-ghost" id="btn-cancelar" style="margin-top:var(--space-6);">Cancelar assinatura</button>
+    <p class="disclaimer">Ao assinar um novo plano, você será redirecionado ao checkout seguro do Mercado Pago. O plano anterior pode ser cancelado aqui a qualquer momento.</p>
+  </main>
+</div>
+
+<script src="/assets/js/config.js"></script>
+<script type="module">
+  import { supabase } from '/assets/js/supabaseClient.js';
+  import { exigirSessao, perfilAtual, sair } from '/assets/js/auth.js';
+  import { cancelarAssinatura } from '/assets/js/checkout.js';
+
+  async function init() {
+    const user = await exigirSessao();
+    if (!user) return;
+    const perfil = await perfilAtual();
+    document.getElementById('user-nome').textContent = perfil?.nome_completo || user.email;
+    document.getElementById('btn-sair').addEventListener('click', sair);
+
+    await carregarStatus(user.id);
+
+    document.getElementById('btn-cancelar').addEventListener('click', async () => {
+      if (!confirm('Tem certeza que deseja cancelar sua assinatura?')) return;
+      try {
+        await cancelarAssinatura();
+        await carregarStatus(user.id);
+        alert('Assinatura cancelada.');
+      } catch (err) {
+        alert('Erro ao cancelar: ' + err.message);
+      }
+    });
+  }
+
+  async function carregarStatus(userId) {
+    const { data } = await supabase
+      .from('assinaturas')
+      .select('*')
+      .eq('user_id', userId)
+      .order('criado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const el = document.getElementById('assinatura-status');
+    if (!data) {
+      el.innerHTML = `<span class="tag tag-stamp">Sem assinatura</span><p style="margin-top:12px;">Escolha um plano abaixo para começar.</p>`;
+      return;
+    }
+    const statusLabel = {
+      authorized: '<span class="tag tag-seal">Ativa</span>',
+      pending: '<span class="tag tag-gold">Aguardando confirmação de pagamento</span>',
+      paused: '<span class="tag tag-gold">Pausada</span>',
+      cancelled: '<span class="tag tag-stamp">Cancelada</span>',
+      expired: '<span class="tag tag-stamp">Expirada</span>',
+    }[data.status] || data.status;
+
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong>Plano ${data.plano_id.toUpperCase()}</strong> ${statusLabel}
+      </div>
+      <p style="margin:0;font-size:0.88rem;">
+        ${data.data_proxima_cobranca ? 'Próxima cobrança: ' + new Date(data.data_proxima_cobranca).toLocaleDateString('pt-BR') : ''}
+      </p>
+    `;
+  }
+
+  init();
+</script>
+</body>
+</html>

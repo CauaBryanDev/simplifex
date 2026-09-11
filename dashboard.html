@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel — Simplifex</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <a href="/" class="brand"><span class="brand-mark">S</span>Simplifex</a>
+    <nav>
+      <a class="side-link active" href="/dashboard.html">Painel</a>
+      <a class="side-link" href="/calculadora.html">Nova simulação</a>
+      <a class="side-link" href="/assinatura.html">Assinatura</a>
+      <a class="side-link" href="#" id="btn-sair">Sair</a>
+    </nav>
+    <div class="side-foot" id="user-nome">—</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h2 style="margin-bottom:4px;">Painel fiscal</h2>
+        <p style="margin:0;">Resumo do mês atual</p>
+      </div>
+      <span class="plan-badge" id="plan-badge"></span>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat">
+        <div class="label">TRANSAÇÕES NO MÊS</div>
+        <div class="value" id="stat-qtd">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">FATURAMENTO</div>
+        <div class="value" id="stat-faturamento">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">IMPOSTOS CALCULADOS</div>
+        <div class="value" id="stat-impostos">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">ALÍQUOTA EFETIVA</div>
+        <div class="value" id="stat-aliquota">—</div>
+      </div>
+    </div>
+
+    <section class="card" style="margin-bottom:var(--space-7);">
+      <h3>Lançar transação</h3>
+      <div class="form-error" id="form-transacao-erro"></div>
+      <div class="form-success" id="form-transacao-sucesso"></div>
+      <form id="form-transacao">
+        <div class="grid-2">
+          <div class="field">
+            <label for="tipo-transacao">Tipo</label>
+            <select id="tipo-transacao" name="tipo" required>
+              <option value="MERCADORIA">Venda de mercadoria</option>
+              <option value="SERVICO">Prestação de serviço</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="valor">Valor (R$)</label>
+            <input type="number" step="0.01" min="0" id="valor" name="valor" required placeholder="1000.00">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="descricao">Descrição</label>
+          <input type="text" id="descricao" name="descricao" placeholder="Ex: Venda de 10 camisetas">
+        </div>
+
+        <div class="grid-2" data-campo="mercadoria">
+          <div class="field">
+            <label for="uf_origem">UF de origem (sua empresa)</label>
+            <select id="uf_origem" name="uf_origem" data-uf required></select>
+          </div>
+          <div class="field">
+            <label for="uf_destino">UF de destino (comprador)</label>
+            <select id="uf_destino" name="uf_destino" data-uf required></select>
+          </div>
+        </div>
+        <div class="grid-2" data-campo="mercadoria">
+          <div class="field">
+            <label><input type="checkbox" name="consumidor_final" checked style="width:auto;display:inline-block;margin-right:6px;">Comprador é consumidor final</label>
+          </div>
+          <div class="field">
+            <label><input type="checkbox" name="contribuinte_icms_destino" style="width:auto;display:inline-block;margin-right:6px;">Comprador é contribuinte de ICMS</label>
+          </div>
+        </div>
+
+        <div class="grid-2" data-campo="servico">
+          <div class="field">
+            <label for="uf_prestacao">UF de prestação</label>
+            <select id="uf_prestacao" name="uf_prestacao" data-uf required></select>
+          </div>
+          <div class="field">
+            <label for="municipio_prestacao">Município de prestação</label>
+            <input type="text" id="municipio_prestacao" name="municipio_prestacao" placeholder="Ex: São Paulo">
+          </div>
+        </div>
+        <div class="field" data-campo="servico">
+          <label for="tipo_servico">Tipo de serviço (para retenção na fonte)</label>
+          <select id="tipo_servico" name="tipo_servico">
+            <option value="CONSULTORIA">Consultoria</option>
+            <option value="TECNOLOGIA_TI">Tecnologia / TI</option>
+            <option value="LIMPEZA_CONSERVACAO">Limpeza e conservação</option>
+            <option value="VIGILANCIA_SEGURANCA">Vigilância e segurança</option>
+            <option value="CONSTRUCAO_CIVIL">Construção civil</option>
+            <option value="TRANSPORTE">Transporte</option>
+            <option value="OUTROS_SERVICOS">Outros serviços</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Calcular e lançar</button>
+      </form>
+    </section>
+
+    <section>
+      <h3>Últimas transações</h3>
+      <table>
+        <thead>
+          <tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Impostos</th><th>Status</th></tr>
+        </thead>
+        <tbody id="tabela-transacoes-body"></tbody>
+      </table>
+      <p class="disclaimer">Os valores calculados seguem regras gerais e servem como referência de precificação e organização fiscal. Para apuração oficial (DAS, DASN-SIMEI, DEFIS), confirme com seu contador.</p>
+    </section>
+  </main>
+</div>
+
+<script src="/assets/js/config.js"></script>
+<script type="module" src="/assets/js/dashboard.js"></script>
+</body>
+</html>
