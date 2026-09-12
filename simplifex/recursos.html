@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recursos avulsos — Simplifex</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <a href="/" class="brand"><span class="brand-mark">S</span>Simplifex</a>
+    <nav>
+      <a class="side-link" href="/dashboard.html">Painel</a>
+      <a class="side-link" href="/calculadora.html">Nova simulação</a>
+      <a class="side-link active" href="/recursos.html">Recursos avulsos</a>
+      <a class="side-link" href="/irpf.html">Simulador IRPF</a>
+      <a class="side-link" href="/assinatura.html">Meu plano</a>
+      <a class="side-link" href="#" id="btn-sair">Sair</a>
+    </nav>
+    <div class="side-foot" id="user-nome">—</div>
+  </aside>
+
+  <main class="main">
+    <h2>Recursos avulsos</h2>
+    <p>Pague só quando usar — sem assinatura, direto no PIX.</p>
+
+    <div class="card" style="max-width:520px;">
+      <div class="plan-name">USO ÚNICO</div>
+      <div class="plan-price">R$ 1,90</div>
+      <p class="plan-desc">Libera 1 exportação do relatório mensal do seu Dashboard (faturamento, impostos detalhados e lançamentos) pronto para enviar ao seu contador.</p>
+
+      <div id="estado-disponivel" style="display:none;">
+        <p style="color:var(--seal-dark);font-weight:600;">Você tem <span id="qtd-disponivel">0</span> utilização(ões) disponível(is).</p>
+        <button class="btn btn-primary btn-block" id="btn-usar">Usar agora — exportar relatório</button>
+      </div>
+
+      <div id="estado-comprar">
+        <button class="btn btn-primary btn-block" id="btn-comprar">Pagar R$ 1,90 via PIX</button>
+      </div>
+
+      <div id="area-pix" style="display:none;margin-top:20px;text-align:center;">
+        <p style="font-weight:600;">Escaneie o QR Code ou copie o código PIX:</p>
+        <img id="pix-qrcode" style="max-width:220px;margin:0 auto 12px;display:block;border:1px solid var(--line);" />
+        <textarea id="pix-copia-cola" readonly style="width:100%;font-family:var(--font-mono);font-size:0.75rem;padding:8px;border:1px solid var(--line);border-radius:var(--radius-s);" rows="3"></textarea>
+        <button class="btn btn-ghost" id="btn-copiar-pix" style="margin-top:8px;">Copiar código PIX</button>
+        <p id="pix-status" style="margin-top:12px;color:var(--ink-soft);">Aguardando confirmação do pagamento…</p>
+      </div>
+    </div>
+
+    <p class="disclaimer" style="max-width:520px;">O preço é sempre definido pelo servidor — não pode ser alterado pelo navegador. A liberação da utilização só acontece depois da confirmação do Mercado Pago (webhook), nunca antes.</p>
+  </main>
+</div>
+
+<script src="/assets/js/config.js"></script>
+<script type="module">
+  import { exigirSessao, perfilAtual, sair } from '/assets/js/auth.js';
+  import { criarPagamentoPix, verificarPagamento, utilizacoesDisponiveis, consumirUtilizacao } from '/assets/js/pix-checkout.js';
+  import { supabase } from '/assets/js/supabaseClient.js';
+
+  const PRODUCT = 'one_time';
+  let intervaloVerificacao = null;
+
+  async function init() {
+    const user = await exigirSessao();
+    if (!user) return;
+    const perfil = await perfilAtual();
+    document.getElementById('user-nome').textContent = perfil?.nome_completo || user.email;
+    document.getElementById('btn-sair').addEventListener('click', sair);
+
+    await atualizarEstado();
+
+    document.getElementById('btn-comprar').addEventListener('click', gerarPix);
+    document.getElementById('btn-usar').addEventListener('click', usarRecurso);
+  }
+
+  async function atualizarEstado() {
+    const qtd = await utilizacoesDisponiveis(PRODUCT);
+    document.getElementById('estado-disponivel').style.display = qtd > 0 ? '' : 'none';
+    document.getElementById('estado-comprar').style.display = qtd > 0 ? 'none' : '';
+    document.getElementById('qtd-disponivel').textContent = qtd;
+  }
+
+  async function gerarPix() {
+    const btn = document.getElementById('btn-comprar');
+    btn.disabled = true; btn.textContent = 'Gerando PIX…';
+    try {
+      const pix = await criarPagamentoPix(PRODUCT);
+      document.getElementById('area-pix').style.display = 'block';
+      document.getElementById('pix-qrcode').src = `data:image/png;base64,${pix.qr_code_base64}`;
+      document.getElementById('pix-copia-cola').value = pix.qr_code || '';
+
+      document.getElementById('btn-copiar-pix').onclick = () => {
+        navigator.clipboard.writeText(pix.qr_code || '');
+        document.getElementById('btn-copiar-pix').textContent = 'Copiado!';
+      };
+
+      clearInterval(intervaloVerificacao);
+      intervaloVerificacao = setInterval(async () => {
+        const status = await verificarPagamento(pix.payment_id);
+        if (status?.status === 'approved') {
+          clearInterval(intervaloVerificacao);
+          document.getElementById('pix-status').textContent = 'Pagamento aprovado! Atualizando…';
+          document.getElementById('pix-status').style.color = 'var(--seal-dark)';
+          await atualizarEstado();
+          document.getElementById('area-pix').style.display = 'none';
+        }
+      }, 4000);
+    } catch (err) {
+      alert('Erro ao gerar PIX: ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Pagar R$ 1,90 via PIX';
+    }
+  }
+
+  async function usarRecurso() {
+    const btn = document.getElementById('btn-usar');
+    btn.disabled = true; btn.textContent = 'Gerando relatório…';
+    try {
+      const consumido = await consumirUtilizacao(PRODUCT);
+      if (!consumido) {
+        alert('Nenhuma utilização disponível no momento.');
+        await atualizarEstado();
+        return;
+      }
+      await exportarRelatorio();
+      await atualizarEstado();
+    } catch (err) {
+      alert('Erro: ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Usar agora — exportar relatório';
+    }
+  }
+
+  async function exportarRelatorio() {
+    const { data: { user } } = await supabase.auth.getUser();
+    const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0,0,0,0);
+    const { data: transacoes } = await supabase
+      .from('transacoes')
+      .select('*, impostos_calculados(*)')
+      .eq('user_id', user.id)
+      .eq('ativo', true)
+      .gte('criado_em', inicioMes.toISOString())
+      .order('criado_em', { ascending: false });
+
+    const linhas = (transacoes || []).map(t => {
+      const imp = Array.isArray(t.impostos_calculados) ? t.impostos_calculados[0] : t.impostos_calculados;
+      const total = imp ? (imp.total_impostos_centavos / 100).toFixed(2) : '0.00';
+      return `${new Date(t.criado_em).toLocaleDateString('pt-BR')};${t.tipo};${(t.descricao||'').replace(/;/g,',')};${(t.valor_centavos/100).toFixed(2)};${total}`;
+    }).join('\n');
+
+    const conteudo = `Relatório Simplifex — ${new Date().toLocaleDateString('pt-BR')}\nData;Tipo;Descrição;Valor;Impostos\n${linhas}`;
+    const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `relatorio-simplifex-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  init();
+</script>
+</body>
+</html>
