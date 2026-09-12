@@ -38,17 +38,15 @@ export function paraReais(valorCentavos) {
  * @param {string} p.regimeTributario - 'MEI' | 'ME' | 'SIMPLES_NACIONAL'
  */
 export async function calcularMercadoria({
-  valorCentavos, ufOrigem, ufDestino, consumidorFinal = true,
-  contribuinteIcmsDestino = false, regimeTributario = 'MEI'
-}) {
+                                           valorCentavos, ufOrigem, ufDestino, consumidorFinal = true,
+                                           contribuinteIcmsDestino = false, regimeTributario = 'MEI'
+                                         }) {
   const detalhe = { tipo: 'MERCADORIA', regras_aplicadas: [] };
 
-  // MEI recolhe ICMS via DAS fixo mensal — não há ICMS "por operação".
   if (regimeTributario === 'MEI') {
     detalhe.regras_aplicadas.push(
-      'MEI recolhe ICMS de forma unificada no DAS mensal fixo — nenhum ICMS por operação foi calculado.'
+        'MEI recolhe ICMS de forma unificada no DAS mensal fixo — o valor abaixo é uma REFERÊNCIA para precificação e organização financeira, não uma cobrança adicional por operação.'
     );
-    return { icmsProprioCentavos: 0, icmsDifalCentavos: 0, detalhe };
   }
 
   const mesmoEstado = ufOrigem === ufDestino;
@@ -58,10 +56,10 @@ export async function calcularMercadoria({
 
   if (mesmoEstado) {
     const { data, error } = await supabase
-      .from('aliquotas_icms_interna')
-      .select('aliquota')
-      .eq('uf', ufOrigem)
-      .single();
+        .from('aliquotas_icms_interna')
+        .select('aliquota')
+        .eq('uf', ufOrigem)
+        .single();
     if (error || !data) throw new Error(`Alíquota interna não encontrada para ${ufOrigem}`);
 
     icmsProprioCentavos = Math.round(valorCentavos * (data.aliquota / 100));
@@ -69,16 +67,16 @@ export async function calcularMercadoria({
     detalhe.aliquota_interna = data.aliquota;
   } else {
     const { data: inter, error: e1 } = await supabase
-      .from('aliquotas_icms_interestadual')
-      .select('aliquota')
-      .eq('uf_origem', ufOrigem)
-      .eq('uf_destino', ufDestino)
-      .single();
+        .from('aliquotas_icms_interestadual')
+        .select('aliquota')
+        .eq('uf_origem', ufOrigem)
+        .eq('uf_destino', ufDestino)
+        .single();
     if (e1 || !inter) throw new Error(`Alíquota interestadual não encontrada: ${ufOrigem} -> ${ufDestino}`);
 
     icmsProprioCentavos = Math.round(valorCentavos * (inter.aliquota / 100));
     detalhe.regras_aplicadas.push(
-      `Operação interestadual ${ufOrigem} -> ${ufDestino}: ICMS próprio ${inter.aliquota}%.`
+        `Operação interestadual ${ufOrigem} -> ${ufDestino}: ICMS próprio ${inter.aliquota}%.`
     );
     detalhe.aliquota_interestadual = inter.aliquota;
 
@@ -86,21 +84,21 @@ export async function calcularMercadoria({
     // (ou contribuinte, com partilha — aqui tratamos o caso comum de e-commerce B2C).
     if (consumidorFinal && !contribuinteIcmsDestino) {
       const { data: interna, error: e2 } = await supabase
-        .from('aliquotas_icms_interna')
-        .select('aliquota')
-        .eq('uf', ufDestino)
-        .single();
+          .from('aliquotas_icms_interna')
+          .select('aliquota')
+          .eq('uf', ufDestino)
+          .single();
       if (e2 || !interna) throw new Error(`Alíquota interna de destino não encontrada para ${ufDestino}`);
 
       const diferencial = Math.max(0, interna.aliquota - inter.aliquota);
       icmsDifalCentavos = Math.round(valorCentavos * (diferencial / 100));
       detalhe.regras_aplicadas.push(
-        `DIFAL (EC 87/2015): ${interna.aliquota}% (interna destino) − ${inter.aliquota}% (interestadual) = ${diferencial.toFixed(2)}% sobre o valor, devido integralmente à UF de destino.`
+          `DIFAL (EC 87/2015): ${interna.aliquota}% (interna destino) − ${inter.aliquota}% (interestadual) = ${diferencial.toFixed(2)}% sobre o valor, devido integralmente à UF de destino.`
       );
       detalhe.aliquota_difal = diferencial;
     } else if (contribuinteIcmsDestino) {
       detalhe.regras_aplicadas.push(
-        'Destinatário é contribuinte de ICMS: DIFAL é partilhado conforme partilha vigente — calcule com seu contador para este caso.'
+          'Destinatário é contribuinte de ICMS: DIFAL é partilhado conforme partilha vigente — calcule com seu contador para este caso.'
       );
     }
   }
@@ -112,27 +110,27 @@ export async function calcularMercadoria({
  * Calcula o ISS de uma operação de SERVIÇO.
  */
 export async function calcularServico({
-  valorCentavos, municipioPrestacao, ufPrestacao, regimeTributario = 'MEI'
-}) {
+                                        valorCentavos, municipioPrestacao, ufPrestacao, regimeTributario = 'MEI'
+                                      }) {
   const detalhe = { tipo: 'SERVICO', regras_aplicadas: [] };
 
   if (regimeTributario === 'MEI') {
     detalhe.regras_aplicadas.push(
-      'MEI recolhe ISS de forma unificada no DAS mensal fixo — nenhum ISS por operação foi calculado.'
+        'MEI recolhe ISS de forma unificada no DAS mensal fixo — nenhum ISS por operação foi calculado.'
     );
     return { issCentavos: 0, detalhe };
   }
 
   const { data, error } = await supabase
-    .from('aliquotas_iss')
-    .select('aliquota')
-    .eq('municipio', municipioPrestacao)
-    .eq('uf', ufPrestacao)
-    .single();
+      .from('aliquotas_iss')
+      .select('aliquota')
+      .eq('municipio', municipioPrestacao)
+      .eq('uf', ufPrestacao)
+      .single();
 
   if (error || !data) {
     detalhe.regras_aplicadas.push(
-      `Município "${municipioPrestacao}/${ufPrestacao}" não cadastrado — usando alíquota padrão de 5% (teto da LC 116/2003). Cadastre a alíquota exata do seu município em Configurações.`
+        `Município "${municipioPrestacao}/${ufPrestacao}" não cadastrado — usando alíquota padrão de 5% (teto da LC 116/2003). Cadastre a alíquota exata do seu município em Configurações.`
     );
     const issCentavos = Math.round(valorCentavos * 0.05);
     return { issCentavos, detalhe };
@@ -162,10 +160,10 @@ export async function calcularRetencoes({ valorCentavos, tipoServico, regimeTrib
   }
 
   const { data, error } = await supabase
-    .from('regras_retencao_servico')
-    .select('*')
-    .eq('tipo_servico', tipoServico)
-    .single();
+      .from('regras_retencao_servico')
+      .select('*')
+      .eq('tipo_servico', tipoServico)
+      .single();
 
   if (error || !data) {
     detalhe.regras_aplicadas.push(`Regra de retenção não encontrada para "${tipoServico}".`);
@@ -174,7 +172,7 @@ export async function calcularRetencoes({ valorCentavos, tipoServico, regimeTrib
 
   if (valorCentavos < data.valor_minimo_retencao_centavos) {
     detalhe.regras_aplicadas.push(
-      `Valor abaixo do mínimo de retenção (R$ ${paraReais(data.valor_minimo_retencao_centavos)}) — sem retenção.`
+        `Valor abaixo do mínimo de retenção (R$ ${paraReais(data.valor_minimo_retencao_centavos)}) — sem retenção.`
     );
     return { irrfCentavos: 0, inssCentavos: 0, pisCofinsCsllCentavos: 0, detalhe };
   }
@@ -184,7 +182,7 @@ export async function calcularRetencoes({ valorCentavos, tipoServico, regimeTrib
   const pisCofinsCsllCentavos = Math.round(valorCentavos * (data.pis_cofins_csll_pct / 100));
 
   detalhe.regras_aplicadas.push(
-    `${tipoServico}: IRRF ${data.irrf_pct}%, INSS ${data.inss_pct}%, PIS/COFINS/CSLL ${data.pis_cofins_csll_pct}%. ${data.observacao || ''}`
+      `${tipoServico}: IRRF ${data.irrf_pct}%, INSS ${data.inss_pct}%, PIS/COFINS/CSLL ${data.pis_cofins_csll_pct}%. ${data.observacao || ''}`
   );
 
   return { irrfCentavos, inssCentavos, pisCofinsCsllCentavos, detalhe };
