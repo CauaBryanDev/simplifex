@@ -1,26 +1,30 @@
 import { supabase } from './supabaseClient.js';
-import { exigirSessao, perfilAtual, sair } from './auth.js';
+import { perfilAtual, sair } from './auth.js';
 import { calcularEGravarTransacao, paraCentavos, paraReais } from './calculator-engine.js';
+import { exigirAssinaturaAtiva, LIMITE_TRANSACOES_MEI, TETO_ANUAL_MEI_CENTAVOS, contarTransacoesDoMes, faturamentoDoAno } from './plano.js';
 
 let perfil = null;
+let planoAtivo = null; // 'mei' | 'me'
 let transacaoEmEdicao = null; // id da transação sendo editada, ou null = criando nova
 let chartComposicao = null, chartImpostos = null, chartFaturamento = null;
 
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
 async function init() {
-  // O Dashboard é gratuito para todo usuário autenticado — não há verificação
-  // de assinatura aqui. A monetização fica só nas telas de recursos pagos
-  // (recursos.html, irpf.html) e no gerenciamento de plano (assinatura.html).
-  const user = await exigirSessao();
-  if (!user) return;
+  // Painel exige assinatura ativa (MEI ou ME) — sem uma delas, redireciona
+  // para /assinatura.html. Isso substitui a versão anterior, que era gratuita.
+  const contexto = await exigirAssinaturaAtiva('painel');
+  if (!contexto) return;
+  const { user, assinatura } = contexto;
+  planoAtivo = assinatura.plano_id;
 
   perfil = await perfilAtual();
   document.getElementById('user-nome').textContent = perfil?.nome_completo || user.email;
 
   preencherSelectsUF();
-  await carregarBadgePlano();
+  renderizarBadgePlano(assinatura);
   await carregarTudo();
+  await carregarAlertaTetoMei(user.id);
 
   document.getElementById('btn-sair')?.addEventListener('click', sair);
   document.getElementById('form-transacao')?.addEventListener('submit', onSubmitTransacao);
@@ -28,6 +32,37 @@ async function init() {
   document.getElementById('btn-cancelar-edicao')?.addEventListener('click', cancelarEdicao);
   document.getElementById('modal-detalhe-fechar')?.addEventListener('click', fecharModalDetalhe);
   alternarCamposTipo();
+}
+
+function renderizarBadgePlano(assinatura) {
+  const badge = document.getElementById('plan-badge');
+  if (!badge) return;
+  badge.textContent = assinatura.plano_id === 'mei' ? 'Plano MEI — ativo' : 'Plano ME — ativo';
+  badge.classList.add('tag-seal');
+}
+
+/** Alerta descrito no plano MEI: avisa quando o faturamento anual se aproxima do teto do MEI. */
+async function carregarAlertaTetoMei(userId) {
+  const alertaEl = document.getElementById('alerta-teto-mei');
+  if (!alertaEl || planoAtivo !== 'mei') { if (alertaEl) alertaEl.style.display = 'none'; return; }
+
+  const faturamentoAno = await faturamentoDoAno(userId);
+  const percentual = (faturamentoAno / TETO_ANUAL_MEI_CENTAVOS) * 100;
+
+  if (percentual < 80) { alertaEl.style.display = 'none'; return; }
+
+  alertaEl.style.display = 'block';
+  if (percentual >= 100) {
+    alertaEl.className = 'form-error';
+    alertaEl.style.display = 'block';
+    alertaEl.textContent = `Seu faturamento em ${new Date().getFullYear()} já passou de R$ ${paraReais(TETO_ANUAL_MEI_CENTAVOS)} (teto do MEI). É hora de conversar com seu contador sobre migrar para ME.`;
+  } else {
+    alertaEl.className = 'form-success';
+    alertaEl.style.display = 'block';
+    alertaEl.style.borderColor = 'var(--gold)';
+    alertaEl.style.color = '#8A6A22';
+    alertaEl.textContent = `Atenção: você já faturou ${percentual.toFixed(0)}% do teto anual do MEI (R$ ${paraReais(TETO_ANUAL_MEI_CENTAVOS)}). Fique de olho para não ultrapassar.`;
+  }
 }
 
 async function carregarTudo() {
@@ -55,41 +90,18 @@ function alternarCamposTipo() {
   document.querySelectorAll('[data-campo="servico"]').forEach(el => el.style.display = tipo === 'SERVICO' ? '' : 'none');
 }
 
-async function carregarBadgePlano() {
-  const { data } = await supabase
-    .from('assinaturas')
-    .select('plano_id, status')
-    .eq('user_id', perfil.id)
-    .order('criado_em', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const badge = document.getElementById('plan-badge');
-  if (!badge) return;
-  if (data && data.status === 'authorized') {
-    badge.textContent = data.plano_id === 'mei' ? 'Plano MEI — ativo' : 'Plano ME — ativo';
-    badge.classList.add('tag-seal');
-  } else if (data && data.status === 'pending') {
-    badge.textContent = 'Assinatura pendente de confirmação';
-    badge.classList.add('tag-gold');
-  } else {
-    badge.textContent = 'Painel gratuito — sem assinatura';
-    badge.classList.add('tag-gold');
-  }
-}
-
 /** Busca todos os lançamentos ATIVOS do mês corrente, já com os impostos calculados. */
 async function buscarTransacoesDoMes() {
   const inicioMes = new Date();
   inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
 
   const { data, error } = await supabase
-    .from('transacoes')
-    .select('*, impostos_calculados(*)')
-    .eq('user_id', perfil.id)
-    .eq('ativo', true)
-    .gte('criado_em', inicioMes.toISOString())
-    .order('criado_em', { ascending: false });
+      .from('transacoes')
+      .select('*, impostos_calculados(*)')
+      .eq('user_id', perfil.id)
+      .eq('ativo', true)
+      .gte('criado_em', inicioMes.toISOString())
+      .order('criado_em', { ascending: false });
 
   if (error) { console.error(error); return []; }
   return (data || []).map(t => ({ ...t, _imp: Array.isArray(t.impostos_calculados) ? t.impostos_calculados[0] : t.impostos_calculados }));
@@ -98,8 +110,8 @@ async function buscarTransacoesDoMes() {
 function somaImpostos(imp) {
   if (!imp) return 0;
   return (imp.icms_proprio_centavos || 0) + (imp.icms_difal_centavos || 0) + (imp.iss_centavos || 0)
-    + (imp.irrf_centavos || 0) + (imp.inss_centavos || 0) + (imp.pis_centavos || 0)
-    + (imp.cofins_centavos || 0) + (imp.irpj_centavos || 0) + (imp.csll_centavos || 0);
+      + (imp.irrf_centavos || 0) + (imp.inss_centavos || 0) + (imp.pis_centavos || 0)
+      + (imp.cofins_centavos || 0) + (imp.irpj_centavos || 0) + (imp.csll_centavos || 0);
 }
 
 function renderizarEstatisticas(transacoes) {
@@ -137,14 +149,14 @@ function renderizarDetalhamentoPeriodo(detalhado, total) {
   const container = document.getElementById('detalhamento-periodo');
   if (!container) return;
   const linhas = Object.entries(detalhado)
-    .filter(([, valor]) => valor > 0)
-    .map(([nome, valor]) => `
+      .filter(([, valor]) => valor > 0)
+      .map(([nome, valor]) => `
       <div class="receipt-row"><span>${nome}</span><span>R$ ${paraReais(valor)}</span></div>
     `).join('');
 
   container.innerHTML = linhas
-    ? linhas + `<div class="receipt-row total"><span>Total</span><span>R$ ${paraReais(total)}</span></div>`
-    : `<p style="color:var(--ink-soft);margin:0;">Nenhum imposto aplicável nos lançamentos deste mês ainda.</p>`;
+      ? linhas + `<div class="receipt-row total"><span>Total</span><span>R$ ${paraReais(total)}</span></div>`
+      : `<p style="color:var(--ink-soft);margin:0;">Nenhum imposto aplicável nos lançamentos deste mês ainda.</p>`;
 }
 
 function renderizarTabela(transacoes) {
@@ -219,8 +231,8 @@ function abrirModalDetalhe(t) {
   ].filter(([, v]) => v > 0);
 
   const memoria = (imp?.detalhe_json?.partes || [])
-    .flatMap(p => p.regras_aplicadas || [])
-    .map(r => `<li>${escapeHtml(r)}</li>`).join('');
+      .flatMap(p => p.regras_aplicadas || [])
+      .map(r => `<li>${escapeHtml(r)}</li>`).join('');
 
   corpo.innerHTML = `
     <p style="margin-bottom:8px;"><strong>${escapeHtml(t.descricao || (t.tipo === 'MERCADORIA' ? 'Venda de mercadoria' : 'Prestação de serviço'))}</strong></p>
@@ -331,19 +343,19 @@ async function onSubmitTransacao(ev) {
     let transacao;
     if (transacaoEmEdicao) {
       const { data, error } = await supabase
-        .from('transacoes')
-        .update(payload)
-        .eq('id', transacaoEmEdicao)
-        .select()
-        .single();
+          .from('transacoes')
+          .update(payload)
+          .eq('id', transacaoEmEdicao)
+          .select()
+          .single();
       if (error) throw error;
       transacao = data;
     } else {
       const { data, error } = await supabase
-        .from('transacoes')
-        .insert(payload)
-        .select()
-        .single();
+          .from('transacoes')
+          .insert(payload)
+          .select()
+          .single();
       if (error) throw error;
       transacao = data;
     }
