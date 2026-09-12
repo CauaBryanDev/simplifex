@@ -13,4 +13,6 @@ window.SIMPLIFEX_CONFIG = {
   // URLs das Edge Functions do Supabase (após deploy)
   FN_CREATE_PREAPPROVAL: 'https://umtbatzuhjdlzaswaklr.functions.supabase.co/create-preapproval',
   FN_CANCEL_SUBSCRIPTION: 'https://umtbatzuhjdlzaswaklr.functions.supabase.co/cancel-subscription',
+  FN_CHANGE_SUBSCRIPTION: 'https://umtbatzuhjdlzaswaklr.functions.supabase.co/change-subscription',
+  FN_CREATE_PIX_PAYMENT: 'https://umtbatzuhjdlzaswaklr.functions.supabase.co/create-pix-payment',
 };

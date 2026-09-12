@@ -1,14 +1,19 @@
 import { supabase } from './supabaseClient.js';
-import { exigirSessao, perfilAtual, sair } from './auth.js';
+import { perfilAtual, sair } from './auth.js';
 import { paraCentavos, paraReais } from './calculator-engine.js';
+import { exigirAssinaturaAtiva } from './plano.js';
 
 let perfil = null;
 let movimentoEmEdicao = null;
 let chartFluxo = null;
 
 async function init() {
-  const user = await exigirSessao();
-  if (!user) return;
+  // O fluxo de caixa é tão restrito a assinantes quanto o painel — sem
+  // assinatura ativa, manda para /assinatura.html em vez de mostrar a página.
+  const contexto = await exigirAssinaturaAtiva('caixa');
+  if (!contexto) return;
+  const { user } = contexto;
+
   perfil = await perfilAtual();
   document.getElementById('user-nome').textContent = perfil?.nome_completo || user.email;
   document.getElementById('btn-sair').addEventListener('click', sair);

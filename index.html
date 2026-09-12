@@ -160,8 +160,6 @@
 
   usuarioAtual().then((user) => {
     if (!user) return;
-    // Usuário já logado: os botões de "Assinar plano" levam direto para a
-    // tela de assinatura, em vez de mandar de volta para o cadastro.
     document.getElementById('cta-plano-mei')?.setAttribute('href', '/assinatura.html');
     document.getElementById('cta-plano-me')?.setAttribute('href', '/assinatura.html');
   });

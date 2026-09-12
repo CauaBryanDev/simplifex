@@ -53,6 +53,26 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'plano_id inválido. Use "mei" ou "me".' }, 400);
     }
 
+    // 2.1 Trava de duplicidade (item 13): se já existe assinatura viva, o
+    // caminho certo é trocar de plano, não criar uma segunda assinatura.
+    // O banco também tem um índice único parcial que rejeitaria o insert
+    // mesmo se essa checagem falhasse — dupla camada de proteção.
+    const supabaseCheck = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const { data: assinaturaViva } = await supabaseCheck
+      .from('assinaturas')
+      .select('id, plano_id, status')
+      .eq('user_id', user.id)
+      .in('status', ['authorized', 'pending', 'paused'])
+      .maybeSingle();
+
+    if (assinaturaViva) {
+      return jsonResponse({
+        error: 'ASSINATURA_JA_EXISTE',
+        message: `Você já possui uma assinatura ${assinaturaViva.status === 'authorized' ? 'ativa' : 'em andamento'} (plano ${assinaturaViva.plano_id.toUpperCase()}). Use a troca de plano em vez de assinar novamente.`,
+        plano_atual: assinaturaViva.plano_id,
+      }, 409);
+    }
+
     // 3. Cria a assinatura recorrente no Mercado Pago
     const mpResponse = await fetch('https://api.mercadopago.com/preapproval', {
       method: 'POST',

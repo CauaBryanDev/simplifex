@@ -65,14 +65,43 @@ Deno.serve(async (req: Request) => {
     }
 
     if (topic === 'payment') {
-      // Pagamento avulso de uma cobrança recorrente — útil para registrar histórico/recibos.
       const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${resourceId}`, {
         headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
       });
       const payment = await mpRes.json();
-      if (mpRes.ok) {
-        console.log(`Pagamento ${payment.id} — status: ${payment.status} — valor: ${payment.transaction_amount}`);
-        // Aqui você pode gravar em uma tabela `pagamentos_assinatura` para histórico/nota.
+      if (!mpRes.ok) {
+        console.error('Erro ao buscar pagamento:', payment);
+        return new Response('erro ao consultar pagamento', { status: 200 });
+      }
+
+      console.log(`Pagamento ${payment.id} — status: ${payment.status} — valor: ${payment.transaction_amount}`);
+
+      // Pagamento avulso (PIX) de um produto one_time/irpf_simulation.
+      // Idempotência: o UPDATE só afeta a linha se ela ainda estiver
+      // "pending" — se o webhook chegar duplicado, a segunda chamada não
+      // encontra nenhuma linha "pending" para atualizar e não faz nada,
+      // então nunca liberamos 2 utilizações para o mesmo pagamento.
+      if (payment.status === 'approved') {
+        const { data: atualizados, error: updError } = await supabaseAdmin
+          .from('one_time_purchases')
+          .update({ status: 'approved' })
+          .eq('mp_payment_id', String(payment.id))
+          .eq('status', 'pending')
+          .select('id, user_id, product');
+
+        if (updError) {
+          console.error('Erro ao aprovar compra avulsa:', updError);
+        } else if (atualizados && atualizados.length > 0) {
+          console.log(`Compra avulsa ${atualizados[0].id} (produto ${atualizados[0].product}) aprovada — 1 utilização liberada.`);
+        } else {
+          console.log(`Webhook duplicado ou pagamento ${payment.id} já processado — nenhuma ação repetida.`);
+        }
+      } else if (['cancelled', 'rejected'].includes(payment.status)) {
+        await supabaseAdmin
+          .from('one_time_purchases')
+          .update({ status: 'cancelled' })
+          .eq('mp_payment_id', String(payment.id))
+          .eq('status', 'pending');
       }
     }
 

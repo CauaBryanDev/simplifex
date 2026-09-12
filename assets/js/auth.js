@@ -54,22 +54,11 @@ export async function exigirSessao() {
   return user;
 }
 
-/**
- * Retorna a assinatura ativa (status = 'authorized') do usuário logado, ou
- * null se ele não tiver nenhuma. Usado para liberar/bloquear o painel
- * (fluxo de caixa) e para aplicar o limite de transações de cada plano.
- */
-export async function assinaturaAtiva() {
-  const { data, error } = await supabase.rpc('assinatura_ativa');
-  if (error) { console.error(error); return null; }
-  return Array.isArray(data) ? (data[0] || null) : (data || null);
-}
-
-/** true se o usuário logado tem assinatura ativa (pode usar o painel/fluxo de caixa). */
-export async function temAcessoAtivo() {
-  const { data, error } = await supabase.rpc('usuario_tem_acesso');
-  if (error) { console.error(error); return false; }
-  return !!data;
+export async function recuperarSenha(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/redefinir-senha.html`,
+  });
+  if (error) throw error;
 }
 
 /**
@@ -96,11 +85,5 @@ export async function atualizarNavSessao() {
   document.querySelectorAll('[data-acao="sair"]').forEach(el => {
     el.addEventListener('click', (ev) => { ev.preventDefault(); sair(); });
   });
-}
-
-export async function recuperarSenha(email) {
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/redefinir-senha.html`,
-  });
-  if (error) throw error;
+  return user;
 }
