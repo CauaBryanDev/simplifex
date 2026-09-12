@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Criar conta — Simplifex</title>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Criar conta — Simplifex</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body>
 
@@ -57,14 +57,7 @@
           <label for="municipio">Município</label>
           <input type="text" id="municipio" name="municipio" required>
         </div>
-        <div class="field">
-          <label for="plano">Plano</label>
-          <select id="plano" name="plano" required>
-            <option value="mei">MEI — R$ 27,90/mês</option>
-            <option value="me">ME — R$ 79,90/mês</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Criar conta e ir para pagamento</button>
+        <button type="submit" class="btn btn-primary btn-block">Criar conta grátis</button>
       </form>
       <p style="margin-top:16px;font-size:0.85rem;color:var(--ink-soft);text-align:center;">
         Ao criar a conta você concorda com os Termos de Uso e a Política de Privacidade.
@@ -76,7 +69,6 @@
 <script src="/assets/js/config.js"></script>
 <script type="module">
   import { cadastrar } from '/assets/js/auth.js';
-  import { assinarPlano } from '/assets/js/checkout.js';
 
   const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
   const ufSelect = document.getElementById('uf');
@@ -86,10 +78,11 @@
     ufSelect.appendChild(opt);
   });
 
-  // Pré-seleciona o plano vindo da landing page (?plano=mei|me)
+  // Guarda o plano vindo da landing page (?plano=mei|me) só para sugerir
+  // depois na tela "Meu plano" — não força pagamento no cadastro.
   const params = new URLSearchParams(window.location.search);
   const planoParam = params.get('plano');
-  if (planoParam) document.getElementById('plano').value = planoParam;
+  if (planoParam) sessionStorage.setItem('simplifex_plano_sugerido', planoParam);
 
   const form = document.getElementById('form-cadastro');
   const erroEl = document.getElementById('erro');
@@ -112,15 +105,15 @@
         municipio: form.municipio.value,
       });
 
-      sucessoEl.textContent = 'Conta criada! Redirecionando para o pagamento…';
+      sucessoEl.textContent = 'Conta criada! Redirecionando para o seu painel…';
       sucessoEl.style.display = 'block';
-      btn.textContent = 'Indo para o pagamento…';
+      btn.textContent = 'Abrindo o painel…';
 
-      setTimeout(() => assinarPlano(form.plano.value, btn), 800);
+      setTimeout(() => { window.location.href = '/dashboard.html'; }, 800);
     } catch (err) {
       erroEl.textContent = err.message.includes('already registered')
-        ? 'Este e-mail já está cadastrado. Tente entrar.'
-        : err.message;
+              ? 'Este e-mail já está cadastrado. Tente entrar.'
+              : err.message;
       erroEl.style.display = 'block';
       btn.disabled = false; btn.textContent = 'Criar conta e ir para pagamento';
     }
