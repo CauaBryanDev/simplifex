@@ -265,3 +265,82 @@ begin
   update public.transacoes set status = 'calculada' where id = p_transacao_id;
 end;
 $$ language plpgsql security definer;
+
+-- ----------------------------------------------------------------------------
+-- 10. ACESSO AO PAINEL / FLUXO DE CAIXA — só para assinantes ativos
+-- ----------------------------------------------------------------------------
+
+-- Retorna a assinatura ativa (status = 'authorized') mais recente do usuário
+-- autenticado, ou null se ele não tiver nenhuma — usado tanto para liberar o
+-- painel quanto para saber o plano/limite vigente.
+create or replace function public.assinatura_ativa()
+returns table (plano_id text, limite_transacoes_mes integer, data_proxima_cobranca timestamptz)
+language sql
+stable
+security definer
+as $$
+  select a.plano_id, p.limite_transacoes_mes, a.data_proxima_cobranca
+  from public.assinaturas a
+  join public.planos p on p.id = a.plano_id
+  where a.user_id = auth.uid()
+    and a.status = 'authorized'
+  order by a.criado_em desc
+  limit 1;
+$$;
+
+-- Atalho booleano: o usuário autenticado tem assinatura ativa (pode acessar
+-- o painel/fluxo de caixa)?
+create or replace function public.usuario_tem_acesso()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select exists (select 1 from public.assinatura_ativa());
+$$;
+
+grant execute on function public.assinatura_ativa() to authenticated;
+grant execute on function public.usuario_tem_acesso() to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 11. TRIGGER: impõe as regras do plano na hora de lançar uma transação
+--     - Sem assinatura ativa -> bloqueia (fluxo de caixa é só para assinantes)
+--     - Plano MEI -> respeita o teto de transações/mês do próprio plano
+--     - Plano ME (limite null) -> ilimitado
+-- ----------------------------------------------------------------------------
+create or replace function public.checar_limite_plano()
+returns trigger as $$
+declare
+  v_plano text;
+  v_limite integer;
+  v_usadas integer;
+  v_inicio_mes timestamptz := date_trunc('month', now());
+begin
+  select plano_id, limite_transacoes_mes into v_plano, v_limite
+  from public.assinatura_ativa();
+
+  if v_plano is null then
+    raise exception 'Nenhuma assinatura ativa encontrada. Assine um plano para lançar transações no painel.'
+      using errcode = 'P0001';
+  end if;
+
+  if v_limite is not null then
+    select count(*) into v_usadas
+    from public.transacoes
+    where user_id = new.user_id
+      and criado_em >= v_inicio_mes;
+
+    if v_usadas >= v_limite then
+      raise exception 'Limite de % transações/mês do plano % atingido. Faça upgrade para o plano ME para transações ilimitadas.', v_limite, upper(v_plano)
+        using errcode = 'P0001';
+    end if;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists trg_checar_limite_plano on public.transacoes;
+create trigger trg_checar_limite_plano
+  before insert on public.transacoes
+  for each row execute procedure public.checar_limite_plano();

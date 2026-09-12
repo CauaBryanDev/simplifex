@@ -24,16 +24,7 @@ export async function assinarPlano(planoId, botaoEl) {
       body: JSON.stringify({ plano_id: planoId }),
     });
     const data = await resp.json();
-    if (!resp.ok) {
-      // ASSINATURA_JA_EXISTE (item 13): backend recusou criar uma segunda
-      // assinatura — mostramos a mensagem amigável e mandamos para a troca de plano.
-      if (data.error === 'ASSINATURA_JA_EXISTE') {
-        alert(data.message + '\n\nVocê será levado para a tela de troca de plano.');
-        window.location.href = '/assinatura.html';
-        return;
-      }
-      throw new Error(data.message || data.error || 'Falha ao iniciar assinatura');
-    }
+    if (!resp.ok) throw new Error(data.error || 'Falha ao iniciar assinatura');
 
     // Redireciona para o checkout hospedado do Mercado Pago
     window.location.href = data.init_point;

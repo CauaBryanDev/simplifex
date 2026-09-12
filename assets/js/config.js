@@ -4,15 +4,13 @@
  * do Supabase — essas ficam só nas Edge Functions (ambiente de servidor).
  */
 window.SIMPLIFEX_CONFIG = {
-  SUPABASE_URL: 'https://umtbatzuhjdlzaswaklr.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtdGJhdHp1aGpkbHphc3dha2xyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNTkxMzEsImV4cCI6MjEwNDczNTEzMX0.BpITG3uoZDB1FHpZyx2778km6g1SlavJieMffR3r4kw',
+  SUPABASE_URL: 'https://SEU-PROJETO.supabase.co',
+  SUPABASE_ANON_KEY: 'SUA_ANON_KEY_AQUI',
 
   // Public Key do Mercado Pago (essa sim é pública, usada no SDK do front-end)
-  MERCADOPAGO_PUBLIC_KEY: 'APP_USR-a564c8ae-88e3-4342-be22-09aa52b7d880',
+  MERCADOPAGO_PUBLIC_KEY: 'SUA_PUBLIC_KEY_AQUI',
 
   // URLs das Edge Functions do Supabase (após deploy)
-  FN_CREATE_PREAPPROVAL: 'https://umtbatzuhjdlzaswaklr.functions.supabase.co/create-preapproval',
-  FN_CANCEL_SUBSCRIPTION: 'https://umtbatzuhjdlzaswaklr.functions.supabase.co/cancel-subscription',
-  FN_CHANGE_SUBSCRIPTION: 'https://umtbatzuhjdlzaswaklr.functions.supabase.co/change-subscription',
-  FN_CREATE_PIX_PAYMENT: 'https://umtbatzuhjdlzaswaklr.functions.supabase.co/create-pix-payment',
+  FN_CREATE_PREAPPROVAL: 'https://SEU-PROJETO.functions.supabase.co/create-preapproval',
+  FN_CANCEL_SUBSCRIPTION: 'https://SEU-PROJETO.functions.supabase.co/cancel-subscription',
 };

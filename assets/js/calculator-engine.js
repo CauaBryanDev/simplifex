@@ -1,68 +1,58 @@
 /**
- * Simplifex — Motor de Cálculo Fiscal (v2)
+ * Simplifex — Motor de Cálculo Fiscal
  * ------------------------------------------------------------------
- * Calcula ICMS (próprio + DIFAL), ISS, retenções na fonte (IRRF/INSS) e
- * a estimativa federal (PIS, COFINS, IRPJ, CSLL) para TODO lançamento —
- * mercadoria ou serviço — usando as tabelas de alíquotas do Supabase.
- *
- * MUDANÇA IMPORTANTE (correção de bug): antes, lançamentos de usuários MEI
- * não calculavam ISS nem retenções (retornavam 0 direto). Isso fazia
- * "serviço" parecer quebrado. Agora TODO lançamento sempre calcula um valor
- * de referência — para MEI, o `detalhe` deixa explícito que é uma
- * ESTIMATIVA de organização financeira, já que o MEI recolhe via DAS fixo,
- * não por operação.
+ * Calcula ICMS (próprio + DIFAL), ISS e retenções na fonte (IRRF, INSS,
+ * PIS/COFINS/CSLL) a partir das tabelas de alíquotas do Supabase.
  *
  * IMPORTANTE — leia antes de usar em produção:
  * Este motor aplica REGRAS GERAIS (Resolução SF 22/1989, LC 116/2003,
- * IN RFB 1.234/2012, presunção de lucro para IRPJ/CSLL). Não substitui a
- * análise de um contador para: substituição tributária (ICMS-ST) por NCM,
- * benefícios fiscais locais, enquadramentos especiais de serviço, ou
- * apuração oficial (DAS, DASN-SIMEI, DEFIS).
+ * IN RFB 1.234/2012). Ele não substitui a análise de um contador para:
+ *  - Substituição tributária (ICMS-ST) por NCM;
+ *  - Benefícios fiscais/isenções específicas do seu estado ou município;
+ *  - Enquadramentos especiais de serviço na lista da LC 116/2003;
+ *  - Empresas fora do Simples Nacional.
+ * Os valores retornados incluem `detalhe` com a memória de cálculo completa,
+ * para auditoria.
  * ------------------------------------------------------------------
  */
 
 import { supabase } from './supabaseClient.js';
 
+/** Converte reais (float) para centavos (int) evitando erro de ponto flutuante. */
 export function paraCentavos(valorReais) {
   return Math.round(Number(valorReais) * 100);
 }
 export function paraReais(valorCentavos) {
-  return ((valorCentavos || 0) / 100).toFixed(2);
-}
-
-let _cacheParametrosFederais = null;
-async function getParametrosFederais() {
-  if (_cacheParametrosFederais) return _cacheParametrosFederais;
-  const { data, error } = await supabase.from('parametros_federais').select('chave, aliquota');
-  if (error || !data) throw new Error('Não foi possível carregar parâmetros federais (PIS/COFINS/IRPJ/CSLL).');
-  _cacheParametrosFederais = Object.fromEntries(data.map(r => [r.chave, Number(r.aliquota)]));
-  return _cacheParametrosFederais;
+  return (valorCentavos / 100).toFixed(2);
 }
 
 /**
- * Calcula ICMS (próprio + DIFAL) de uma operação de MERCADORIA.
- * Sempre calcula — para MEI, o resultado é sinalizado como referência.
+ * Calcula os impostos de uma operação de MERCADORIA (ICMS + DIFAL quando aplicável).
+ *
+ * @param {Object} p
+ * @param {number} p.valorCentavos - valor da operação em centavos
+ * @param {string} p.ufOrigem - UF do vendedor
+ * @param {string} p.ufDestino - UF do comprador
+ * @param {boolean} p.consumidorFinal - se o comprador é consumidor final (não revenda)
+ * @param {boolean} p.contribuinteIcmsDestino - se o comprador é contribuinte de ICMS
+ * @param {string} p.regimeTributario - 'MEI' | 'ME' | 'SIMPLES_NACIONAL'
  */
 export async function calcularMercadoria({
   valorCentavos, ufOrigem, ufDestino, consumidorFinal = true,
   contribuinteIcmsDestino = false, regimeTributario = 'MEI'
 }) {
-  const detalhe = { tipo: 'MERCADORIA', regras_aplicadas: [], estimativa: regimeTributario === 'MEI' };
+  const detalhe = { tipo: 'MERCADORIA', regras_aplicadas: [] };
 
   if (regimeTributario === 'MEI') {
     detalhe.regras_aplicadas.push(
-      'MEI recolhe ICMS de forma unificada no DAS mensal fixo — o valor abaixo é uma ESTIMATIVA de referência para precificação, não uma cobrança adicional por operação.'
+      'MEI recolhe ICMS de forma unificada no DAS mensal fixo — o valor abaixo é uma REFERÊNCIA para precificação e organização financeira, não uma cobrança adicional por operação.'
     );
   }
 
   const mesmoEstado = ufOrigem === ufDestino;
+
   let icmsProprioCentavos = 0;
   let icmsDifalCentavos = 0;
-
-  if (!ufOrigem || !ufDestino) {
-    detalhe.regras_aplicadas.push('UF de origem/destino não informada — ICMS não calculado.');
-    return { icmsProprioCentavos, icmsDifalCentavos, detalhe };
-  }
 
   if (mesmoEstado) {
     const { data, error } = await supabase
@@ -90,6 +80,8 @@ export async function calcularMercadoria({
     );
     detalhe.aliquota_interestadual = inter.aliquota;
 
+    // DIFAL (EC 87/2015): só se o destinatário é consumidor final não-contribuinte
+    // (ou contribuinte, com partilha — aqui tratamos o caso comum de e-commerce B2C).
     if (consumidorFinal && !contribuinteIcmsDestino) {
       const { data: interna, error: e2 } = await supabase
         .from('aliquotas_icms_interna')
@@ -101,12 +93,12 @@ export async function calcularMercadoria({
       const diferencial = Math.max(0, interna.aliquota - inter.aliquota);
       icmsDifalCentavos = Math.round(valorCentavos * (diferencial / 100));
       detalhe.regras_aplicadas.push(
-        `DIFAL (EC 87/2015): ${interna.aliquota}% (interna destino) − ${inter.aliquota}% (interestadual) = ${diferencial.toFixed(2)}%.`
+        `DIFAL (EC 87/2015): ${interna.aliquota}% (interna destino) − ${inter.aliquota}% (interestadual) = ${diferencial.toFixed(2)}% sobre o valor, devido integralmente à UF de destino.`
       );
       detalhe.aliquota_difal = diferencial;
     } else if (contribuinteIcmsDestino) {
       detalhe.regras_aplicadas.push(
-        'Destinatário é contribuinte de ICMS: DIFAL é partilhado conforme partilha vigente — confirme com seu contador.'
+        'Destinatário é contribuinte de ICMS: DIFAL é partilhado conforme partilha vigente — calcule com seu contador para este caso.'
       );
     }
   }
@@ -115,24 +107,17 @@ export async function calcularMercadoria({
 }
 
 /**
- * Calcula o ISS de uma operação de SERVIÇO. Sempre calcula — para MEI, o
- * resultado é sinalizado como estimativa (correção do bug anterior, que
- * retornava 0 direto e fazia parecer que serviço não calculava nada).
+ * Calcula o ISS de uma operação de SERVIÇO.
  */
 export async function calcularServico({
   valorCentavos, municipioPrestacao, ufPrestacao, regimeTributario = 'MEI'
 }) {
-  const detalhe = { tipo: 'SERVICO', regras_aplicadas: [], estimativa: regimeTributario === 'MEI' };
+  const detalhe = { tipo: 'SERVICO', regras_aplicadas: [] };
 
   if (regimeTributario === 'MEI') {
     detalhe.regras_aplicadas.push(
-      'MEI recolhe ISS de forma unificada no DAS mensal fixo — o valor abaixo é uma ESTIMATIVA de referência.'
+      'MEI recolhe ISS de forma unificada no DAS mensal fixo — o valor abaixo é uma REFERÊNCIA para precificação, não uma cobrança adicional por operação.'
     );
-  }
-
-  if (!municipioPrestacao || !ufPrestacao) {
-    detalhe.regras_aplicadas.push('Município/UF de prestação não informados — ISS não calculado.');
-    return { issCentavos: 0, detalhe };
   }
 
   const { data, error } = await supabase
@@ -144,7 +129,7 @@ export async function calcularServico({
 
   if (error || !data) {
     detalhe.regras_aplicadas.push(
-      `Município "${municipioPrestacao}/${ufPrestacao}" não cadastrado — usando alíquota padrão de 5% (teto da LC 116/2003).`
+      `Município "${municipioPrestacao}/${ufPrestacao}" não cadastrado — usando alíquota padrão de 5% (teto da LC 116/2003). Cadastre a alíquota exata do seu município em Configurações.`
     );
     const issCentavos = Math.round(valorCentavos * 0.05);
     return { issCentavos, detalhe };
@@ -157,17 +142,20 @@ export async function calcularServico({
 }
 
 /**
- * Retenções na fonte (IRRF/INSS) — só se aplicam a serviço prestado a PJ
- * tomadora fora do Simples. Continuam retornando 0 quando não há tipo de
- * serviço informado ou o valor é abaixo do mínimo — isso é regra tributária
- * real, não bug. Para MEI, sinalizamos como estimativa também.
+ * Calcula retenções na fonte (IRRF, INSS, PIS/COFINS/CSLL) para serviços
+ * prestados a pessoa jurídica tomadora não optante do Simples.
  */
 export async function calcularRetencoes({ valorCentavos, tipoServico, regimeTributario = 'MEI' }) {
-  const detalhe = { regras_aplicadas: [], estimativa: regimeTributario === 'MEI' };
+  const detalhe = { regras_aplicadas: [] };
+
+  if (regimeTributario === 'MEI') {
+    detalhe.regras_aplicadas.push('MEI, em regra, não sofre retenção federal na fonte por prestação de serviço.');
+    return { irrfCentavos: 0, inssCentavos: 0, pisCofinsCsllCentavos: 0, detalhe };
+  }
 
   if (!tipoServico) {
     detalhe.regras_aplicadas.push('Tipo de serviço não informado — nenhuma retenção calculada.');
-    return { irrfCentavos: 0, inssCentavos: 0, detalhe };
+    return { irrfCentavos: 0, inssCentavos: 0, pisCofinsCsllCentavos: 0, detalhe };
   }
 
   const { data, error } = await supabase
@@ -178,69 +166,39 @@ export async function calcularRetencoes({ valorCentavos, tipoServico, regimeTrib
 
   if (error || !data) {
     detalhe.regras_aplicadas.push(`Regra de retenção não encontrada para "${tipoServico}".`);
-    return { irrfCentavos: 0, inssCentavos: 0, detalhe };
+    return { irrfCentavos: 0, inssCentavos: 0, pisCofinsCsllCentavos: 0, detalhe };
   }
 
   if (valorCentavos < data.valor_minimo_retencao_centavos) {
     detalhe.regras_aplicadas.push(
       `Valor abaixo do mínimo de retenção (R$ ${paraReais(data.valor_minimo_retencao_centavos)}) — sem retenção.`
     );
-    return { irrfCentavos: 0, inssCentavos: 0, detalhe };
-  }
-
-  if (regimeTributario === 'MEI') {
-    detalhe.regras_aplicadas.push('MEI, em regra, não sofre retenção federal — valor abaixo é apenas referência.');
+    return { irrfCentavos: 0, inssCentavos: 0, pisCofinsCsllCentavos: 0, detalhe };
   }
 
   const irrfCentavos = Math.round(valorCentavos * (data.irrf_pct / 100));
   const inssCentavos = Math.round(valorCentavos * (data.inss_pct / 100));
+  const pisCofinsCsllCentavos = Math.round(valorCentavos * (data.pis_cofins_csll_pct / 100));
 
   detalhe.regras_aplicadas.push(
-    `${tipoServico}: IRRF ${data.irrf_pct}%, INSS ${data.inss_pct}%. ${data.observacao || ''}`
+    `${tipoServico}: IRRF ${data.irrf_pct}%, INSS ${data.inss_pct}%, PIS/COFINS/CSLL ${data.pis_cofins_csll_pct}%. ${data.observacao || ''}`
   );
 
-  return { irrfCentavos, inssCentavos, detalhe };
+  return { irrfCentavos, inssCentavos, pisCofinsCsllCentavos, detalhe };
 }
 
 /**
- * Estimativa federal (PIS, COFINS, IRPJ, CSLL) — sempre calculada, com base
- * em presunção de lucro simplificada (referência Lucro Presumido). Isto é
- * o "Imposto federal estimado" que aparece no detalhamento do Dashboard.
- */
-export async function calcularFederais({ valorCentavos, tipo }) {
-  const params = await getParametrosFederais();
-  const detalhe = { regras_aplicadas: [] };
-
-  const pisCentavos = Math.round(valorCentavos * (params.PIS / 100));
-  const cofinsCentavos = Math.round(valorCentavos * (params.COFINS / 100));
-
-  const irpjPct = tipo === 'MERCADORIA' ? params.IRPJ_MERCADORIA : params.IRPJ;
-  const csllPct = tipo === 'MERCADORIA' ? params.CSLL_MERCADORIA : params.CSLL;
-  const irpjCentavos = Math.round(valorCentavos * (irpjPct / 100));
-  const csllCentavos = Math.round(valorCentavos * (csllPct / 100));
-
-  detalhe.regras_aplicadas.push(
-    `Estimativa federal (Lucro Presumido): PIS ${params.PIS}%, COFINS ${params.COFINS}%, IRPJ ${irpjPct}%, CSLL ${csllPct}%.`
-  );
-
-  return { pisCentavos, cofinsCentavos, irpjCentavos, csllCentavos, detalhe };
-}
-
-/**
- * Orquestra o cálculo completo de uma transação (mercadoria OU serviço,
- * verificando o tipo) e grava via RPC v2, sempre com valores reais.
+ * Orquestra o cálculo completo de uma transação e grava o resultado no Supabase
+ * via RPC `registrar_calculo_imposto` (transacional, respeitando RLS).
  */
 export async function calcularEGravarTransacao(transacao, perfil) {
   const regime = perfil?.regime_tributario || 'MEI';
   let resultado = {
     icmsProprioCentavos: 0, icmsDifalCentavos: 0, issCentavos: 0,
-    irrfCentavos: 0, inssCentavos: 0, pisCentavos: 0, cofinsCentavos: 0,
-    irpjCentavos: 0, csllCentavos: 0,
+    irrfCentavos: 0, inssCentavos: 0, pisCofinsCsllCentavos: 0,
   };
   const detalheCompleto = { transacao_tipo: transacao.tipo, partes: [] };
 
-  // O TIPO do lançamento decide qual regra tributária roda — mercadoria
-  // nunca usa a regra de serviço, e vice-versa.
   if (transacao.tipo === 'MERCADORIA') {
     const r = await calcularMercadoria({
       valorCentavos: transacao.valor_centavos,
@@ -253,7 +211,7 @@ export async function calcularEGravarTransacao(transacao, perfil) {
     resultado.icmsProprioCentavos = r.icmsProprioCentavos;
     resultado.icmsDifalCentavos = r.icmsDifalCentavos;
     detalheCompleto.partes.push(r.detalhe);
-  } else if (transacao.tipo === 'SERVICO') {
+  } else {
     const rIss = await calcularServico({
       valorCentavos: transacao.valor_centavos,
       municipioPrestacao: transacao.municipio_prestacao,
@@ -270,37 +228,22 @@ export async function calcularEGravarTransacao(transacao, perfil) {
     });
     resultado.irrfCentavos = rRet.irrfCentavos;
     resultado.inssCentavos = rRet.inssCentavos;
+    resultado.pisCofinsCsllCentavos = rRet.pisCofinsCsllCentavos;
     detalheCompleto.partes.push(rRet.detalhe);
-  } else {
-    throw new Error(`Tipo de lançamento desconhecido: "${transacao.tipo}". Use MERCADORIA ou SERVICO.`);
   }
 
-  // Estimativa federal roda para os dois tipos.
-  const rFed = await calcularFederais({ valorCentavos: transacao.valor_centavos, tipo: transacao.tipo });
-  resultado.pisCentavos = rFed.pisCentavos;
-  resultado.cofinsCentavos = rFed.cofinsCentavos;
-  resultado.irpjCentavos = rFed.irpjCentavos;
-  resultado.csllCentavos = rFed.csllCentavos;
-  detalheCompleto.partes.push(rFed.detalhe);
-
-  const { error } = await supabase.rpc('registrar_calculo_imposto_v2', {
+  const { error } = await supabase.rpc('registrar_calculo_imposto', {
     p_transacao_id: transacao.id,
     p_icms_proprio: resultado.icmsProprioCentavos,
     p_icms_difal: resultado.icmsDifalCentavos,
     p_iss: resultado.issCentavos,
     p_irrf: resultado.irrfCentavos,
     p_inss: resultado.inssCentavos,
-    p_pis: resultado.pisCentavos,
-    p_cofins: resultado.cofinsCentavos,
-    p_irpj: resultado.irpjCentavos,
-    p_csll: resultado.csllCentavos,
+    p_pis_cofins_csll: resultado.pisCofinsCsllCentavos,
     p_detalhe: detalheCompleto,
   });
   if (error) throw error;
 
-  const total = resultado.icmsProprioCentavos + resultado.icmsDifalCentavos + resultado.issCentavos
-    + resultado.irrfCentavos + resultado.inssCentavos + resultado.pisCentavos
-    + resultado.cofinsCentavos + resultado.irpjCentavos + resultado.csllCentavos;
-
+  const total = Object.values(resultado).reduce((a, b) => a + b, 0);
   return { ...resultado, totalCentavos: total, detalhe: detalheCompleto };
 }

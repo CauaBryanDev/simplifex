@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Meu plano — Simplifex</title>
+<title>Assinatura — Simplifex</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 </head>
@@ -14,61 +14,36 @@
     <a href="/" class="brand"><span class="brand-mark">S</span>Simplifex</a>
     <nav>
       <a class="side-link" href="/dashboard.html">Painel</a>
-      <a class="side-link" href="/caixa.html">Caixa</a>
       <a class="side-link" href="/calculadora.html">Nova simulação</a>
-      <a class="side-link" href="/recursos.html">Recursos avulsos</a>
-      <a class="side-link" href="/irpf.html">Simulador IRPF</a>
-      <a class="side-link active" href="/assinatura.html">Meu plano</a>
+      <a class="side-link active" href="/assinatura.html">Assinatura</a>
       <a class="side-link" href="#" id="btn-sair">Sair</a>
     </nav>
     <div class="side-foot" id="user-nome">—</div>
   </aside>
 
   <main class="main">
-    <h2>Meu plano</h2>
-    <p>O Dashboard é gratuito para todos — assinar um plano dá acesso a limites maiores de lançamento e recursos avançados.</p>
+    <h2>Sua assinatura</h2>
+    <p>Gerencie seu plano e forma de pagamento — tudo processado com segurança pelo Mercado Pago.</p>
 
     <div class="card" style="max-width:560px;margin-bottom:var(--space-6);">
       <div id="assinatura-status">Carregando…</div>
     </div>
 
-    <div id="area-planos">
-      <h3>Planos disponíveis</h3>
-      <div class="grid-2" style="max-width:760px;">
-        <div class="plan" id="plan-card-mei">
-          <div class="plan-name">MEI</div>
-          <div class="plan-price">R$ 27,90<small> /mês</small></div>
-          <button class="btn btn-primary btn-block" id="btn-plano-mei">Assinar MEI</button>
-        </div>
-        <div class="plan" id="plan-card-me">
-          <div class="plan-name">ME</div>
-          <div class="plan-price">R$ 79,90<small> /mês</small></div>
-          <button class="btn btn-primary btn-block" id="btn-plano-me">Assinar ME</button>
-        </div>
+    <div class="grid-2" style="max-width:760px;">
+      <div class="plan">
+        <div class="plan-name">MEI</div>
+        <div class="plan-price">R$ 27,90<small> /mês</small></div>
+        <button class="btn btn-primary btn-block" onclick="SimplifexCheckout.assinarPlano('mei', this)">Assinar / trocar para MEI</button>
       </div>
-    </div>
-
-    <!-- Confirmação de troca de plano -->
-    <div id="modal-troca" style="display:none;position:fixed;inset:0;background:rgba(28,43,58,0.55);z-index:100;align-items:center;justify-content:center;padding:24px;">
-      <div style="background:var(--paper);border-radius:var(--radius-m);max-width:420px;width:100%;padding:var(--space-6);">
-        <h3>Confirmar troca de plano</h3>
-        <div id="modal-troca-corpo" style="margin-bottom:20px;"></div>
-        <button class="btn btn-primary btn-block" id="btn-confirmar-troca">Confirmar alteração</button>
-        <button class="btn btn-ghost btn-block" id="btn-cancelar-troca" style="margin-top:8px;">Cancelar</button>
+      <div class="plan">
+        <div class="plan-name">ME</div>
+        <div class="plan-price">R$ 79,90<small> /mês</small></div>
+        <button class="btn btn-primary btn-block" onclick="SimplifexCheckout.assinarPlano('me', this)">Assinar / trocar para ME</button>
       </div>
     </div>
 
     <button class="btn btn-ghost" id="btn-cancelar" style="margin-top:var(--space-6);">Cancelar assinatura</button>
-
-    <section style="margin-top:var(--space-8);">
-      <h3>Histórico de alterações</h3>
-      <table>
-        <thead><tr><th>Data</th><th>Plano anterior</th><th>Plano novo</th><th>Diferença</th><th>Próxima cobrança</th></tr></thead>
-        <tbody id="historico-body"></tbody>
-      </table>
-    </section>
-
-    <p class="disclaimer" style="max-width:640px;">Ao trocar de plano, atualizamos a MESMA assinatura no Mercado Pago (não criamos uma nova) — isso preserva sua data de cobrança. O novo valor passa a valer a partir do próximo ciclo, então você nunca é cobrado duas vezes no mesmo mês.</p>
+    <p class="disclaimer">Ao assinar um novo plano, você será redirecionado ao checkout seguro do Mercado Pago. O plano anterior pode ser cancelado aqui a qualquer momento.</p>
   </main>
 </div>
 
@@ -77,10 +52,6 @@
   import { supabase } from '/assets/js/supabaseClient.js';
   import { exigirSessao, perfilAtual, sair } from '/assets/js/auth.js';
   import { cancelarAssinatura } from '/assets/js/checkout.js';
-  import { trocarPlano } from '/assets/js/pix-checkout.js';
-
-  const PRECOS = { mei: 'R$ 27,90', me: 'R$ 79,90' };
-  let planoAtual = null;
 
   async function init() {
     const user = await exigirSessao();
@@ -90,11 +61,6 @@
     document.getElementById('btn-sair').addEventListener('click', sair);
 
     await carregarStatus(user.id);
-    await carregarHistorico(user.id);
-
-    document.getElementById('btn-plano-mei').addEventListener('click', () => onClicarPlano('mei'));
-    document.getElementById('btn-plano-me').addEventListener('click', () => onClicarPlano('me'));
-    document.getElementById('btn-cancelar-troca').addEventListener('click', fecharModalTroca);
 
     document.getElementById('btn-cancelar').addEventListener('click', async () => {
       if (!confirm('Tem certeza que deseja cancelar sua assinatura?')) return;
@@ -113,111 +79,31 @@
       .from('assinaturas')
       .select('*')
       .eq('user_id', userId)
-      .in('status', ['authorized', 'pending', 'paused'])
       .order('criado_em', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    planoAtual = data?.plano_id || null;
     const el = document.getElementById('assinatura-status');
-
     if (!data) {
-      el.innerHTML = `<span class="tag tag-stamp">Sem assinatura</span><p style="margin-top:12px;">O Dashboard continua liberado. Escolha um plano abaixo se quiser recursos de assinante.</p>`;
-    } else {
-      const statusLabel = {
-        authorized: '<span class="tag tag-seal">Ativa</span>',
-        pending: '<span class="tag tag-gold">Aguardando confirmação de pagamento</span>',
-        paused: '<span class="tag tag-gold">Pausada</span>',
-      }[data.status] || data.status;
-
-      el.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <strong>Plano ${data.plano_id.toUpperCase()}</strong> ${statusLabel}
-        </div>
-        <p style="margin:0;font-size:0.88rem;">
-          Valor: ${PRECOS[data.plano_id]}/mês
-          ${data.data_proxima_cobranca ? ' · Próxima cobrança: ' + new Date(data.data_proxima_cobranca).toLocaleDateString('pt-BR') : ''}
-        </p>
-      `;
-    }
-
-    // Desabilita/renomeia o botão do plano já ativo (item 13: não deixa assinar de novo)
-    ['mei', 'me'].forEach(p => {
-      const btn = document.getElementById(`btn-plano-${p}`);
-      if (planoAtual === p) {
-        btn.textContent = 'Plano atual';
-        btn.disabled = true;
-      } else if (planoAtual) {
-        btn.textContent = `Trocar para ${p.toUpperCase()}`;
-        btn.disabled = false;
-      } else {
-        btn.textContent = `Assinar ${p.toUpperCase()}`;
-        btn.disabled = false;
-      }
-    });
-  }
-
-  async function carregarHistorico(userId) {
-    const { data } = await supabase
-      .from('assinatura_historico')
-      .select('*')
-      .eq('user_id', userId)
-      .order('data_alteracao', { ascending: false });
-
-    const tbody = document.getElementById('historico-body');
-    if (!data || data.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:24px;">Nenhuma alteração de plano ainda.</td></tr>`;
+      el.innerHTML = `<span class="tag tag-stamp">Sem assinatura</span><p style="margin-top:12px;">Escolha um plano abaixo para começar.</p>`;
       return;
     }
-    tbody.innerHTML = data.map(h => `
-      <tr>
-        <td>${new Date(h.data_alteracao).toLocaleDateString('pt-BR')}</td>
-        <td>${(h.plano_anterior || '—').toUpperCase()}</td>
-        <td>${h.plano_novo.toUpperCase()}</td>
-        <td>${h.valor_diferenca_centavos >= 0 ? '+' : ''}R$ ${(h.valor_diferenca_centavos / 100).toFixed(2)}</td>
-        <td>${h.proxima_cobranca ? new Date(h.proxima_cobranca).toLocaleDateString('pt-BR') : '—'}</td>
-      </tr>
-    `).join('');
-  }
+    const statusLabel = {
+      authorized: '<span class="tag tag-seal">Ativa</span>',
+      pending: '<span class="tag tag-gold">Aguardando confirmação de pagamento</span>',
+      paused: '<span class="tag tag-gold">Pausada</span>',
+      cancelled: '<span class="tag tag-stamp">Cancelada</span>',
+      expired: '<span class="tag tag-stamp">Expirada</span>',
+    }[data.status] || data.status;
 
-  function onClicarPlano(planoId) {
-    if (!planoAtual) {
-      // Sem assinatura: fluxo normal de checkout (cria a primeira assinatura)
-      window.SimplifexCheckout.assinarPlano(planoId, document.getElementById(`btn-plano-${planoId}`));
-      return;
-    }
-    abrirModalTroca(planoId);
-  }
-
-  function abrirModalTroca(novoPlanoId) {
-    const corpo = document.getElementById('modal-troca-corpo');
-    corpo.innerHTML = `
-      <div class="receipt-row"><span>Plano atual</span><span>${planoAtual.toUpperCase()} — ${PRECOS[planoAtual]}</span></div>
-      <div class="receipt-row"><span>Novo plano</span><span>${novoPlanoId.toUpperCase()} — ${PRECOS[novoPlanoId]}</span></div>
-      <p style="margin-top:12px;color:var(--ink-soft);font-size:0.85rem;">O novo valor entra a partir da próxima cobrança — sua data de pagamento não muda.</p>
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong>Plano ${data.plano_id.toUpperCase()}</strong> ${statusLabel}
+      </div>
+      <p style="margin:0;font-size:0.88rem;">
+        ${data.data_proxima_cobranca ? 'Próxima cobrança: ' + new Date(data.data_proxima_cobranca).toLocaleDateString('pt-BR') : ''}
+      </p>
     `;
-    document.getElementById('modal-troca').style.display = 'flex';
-    document.getElementById('btn-confirmar-troca').onclick = () => confirmarTroca(novoPlanoId);
-  }
-  function fecharModalTroca() {
-    document.getElementById('modal-troca').style.display = 'none';
-  }
-
-  async function confirmarTroca(novoPlanoId) {
-    const btn = document.getElementById('btn-confirmar-troca');
-    btn.disabled = true; btn.textContent = 'Aplicando…';
-    try {
-      const resultado = await trocarPlano(novoPlanoId);
-      fecharModalTroca();
-      alert(`Plano alterado para ${resultado.plano_novo.toUpperCase()}. ${resultado.aviso}`);
-      const { data: { user } } = await supabase.auth.getUser();
-      await carregarStatus(user.id);
-      await carregarHistorico(user.id);
-    } catch (err) {
-      alert('Erro ao trocar de plano: ' + err.message);
-    } finally {
-      btn.disabled = false; btn.textContent = 'Confirmar alteração';
-    }
   }
 
   init();

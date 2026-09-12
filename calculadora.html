@@ -13,9 +13,10 @@
   <div class="container">
     <a href="/" class="brand"><span class="brand-mark">S</span>Simplifex</a>
     <div class="nav-links">
-      <a href="/dashboard.html">Painel</a>
-      <a href="/login.html">Entrar</a>
-      <a href="/cadastro.html" class="btn btn-primary">Criar conta</a>
+      <a href="/dashboard.html" data-nav="logado" style="display:none;">Painel</a>
+      <a href="/login.html" data-nav="deslogado">Entrar</a>
+      <a href="/cadastro.html" class="btn btn-primary" data-nav="deslogado">Criar conta</a>
+      <a href="#" data-nav="logado" data-acao="sair" class="btn btn-ghost" style="display:none;">Sair</a>
     </div>
   </div>
 </nav>
@@ -94,7 +95,12 @@
 
 <script src="/assets/js/config.js"></script>
 <script type="module">
+  import { atualizarNavSessao } from '/assets/js/auth.js';
   import { calcularMercadoria, calcularServico, paraCentavos, paraReais } from '/assets/js/calculator-engine.js';
+
+  // Só ajusta o menu conforme a sessão — nunca desloga ninguém. O simulador
+  // continua público (não exige login) mesmo para quem já tem conta.
+  atualizarNavSessao();
 
   const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
   document.querySelectorAll('select[data-uf]').forEach(sel => {

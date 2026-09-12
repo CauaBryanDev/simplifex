@@ -54,6 +54,50 @@ export async function exigirSessao() {
   return user;
 }
 
+/**
+ * Retorna a assinatura ativa (status = 'authorized') do usuário logado, ou
+ * null se ele não tiver nenhuma. Usado para liberar/bloquear o painel
+ * (fluxo de caixa) e para aplicar o limite de transações de cada plano.
+ */
+export async function assinaturaAtiva() {
+  const { data, error } = await supabase.rpc('assinatura_ativa');
+  if (error) { console.error(error); return null; }
+  return Array.isArray(data) ? (data[0] || null) : (data || null);
+}
+
+/** true se o usuário logado tem assinatura ativa (pode usar o painel/fluxo de caixa). */
+export async function temAcessoAtivo() {
+  const { data, error } = await supabase.rpc('usuario_tem_acesso');
+  if (error) { console.error(error); return false; }
+  return !!data;
+}
+
+/**
+ * Ajusta a navegação de páginas PÚBLICAS (index.html, calculadora.html) de
+ * acordo com a sessão atual — sem nunca redirecionar nem deslogar ninguém.
+ * A sessão do Supabase já fica salva no localStorage do navegador e continua
+ * válida ao navegar entre páginas; isso aqui só corrige o que aparece no menu,
+ * para não parecer que o usuário "caiu" da conta ao visitar Início/Simulador.
+ *
+ * Marque no HTML:
+ *   <a href="/login.html" data-nav="deslogado">Entrar</a>
+ *   <a href="/cadastro.html" data-nav="deslogado">Criar conta</a>
+ *   <a href="/dashboard.html" data-nav="logado" style="display:none;">Painel</a>
+ *   <a href="#" data-nav="logado" data-acao="sair" style="display:none;">Sair</a>
+ */
+export async function atualizarNavSessao() {
+  const user = await usuarioAtual();
+  document.querySelectorAll('[data-nav="logado"]').forEach(el => {
+    el.style.display = user ? '' : 'none';
+  });
+  document.querySelectorAll('[data-nav="deslogado"]').forEach(el => {
+    el.style.display = user ? 'none' : '';
+  });
+  document.querySelectorAll('[data-acao="sair"]').forEach(el => {
+    el.addEventListener('click', (ev) => { ev.preventDefault(); sair(); });
+  });
+}
+
 export async function recuperarSenha(email) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/redefinir-senha.html`,

@@ -17,8 +17,10 @@
     <div class="nav-links">
       <a href="#como-funciona">Como funciona</a>
       <a href="#planos">Planos</a>
-      <a href="/login.html">Entrar</a>
-      <a href="/cadastro.html" class="btn btn-primary">Criar conta grátis</a>
+      <a href="/login.html" data-nav="deslogado">Entrar</a>
+      <a href="/cadastro.html" class="btn btn-primary" data-nav="deslogado">Criar conta grátis</a>
+      <a href="/dashboard.html" data-nav="logado" style="display:none;">Painel</a>
+      <a href="#" data-nav="logado" data-acao="sair" class="btn btn-ghost" style="display:none;">Sair</a>
     </div>
   </div>
 </nav>
@@ -121,7 +123,7 @@
           <li>Integração com Mercado Pago</li>
           <li>Histórico e memória de cálculo</li>
         </ul>
-        <a href="/cadastro.html?plano=mei" class="btn btn-primary btn-block">Assinar plano MEI</a>
+        <a href="/cadastro.html?plano=mei" class="btn btn-primary btn-block" id="cta-plano-mei">Assinar plano MEI</a>
       </div>
       <div class="plan featured">
         <div class="plan-name">PARA ME</div>
@@ -134,7 +136,7 @@
           <li>Integração com Mercado Pago</li>
           <li>Exportação para o seu contador</li>
         </ul>
-        <a href="/cadastro.html?plano=me" class="btn btn-primary btn-block">Assinar plano ME</a>
+        <a href="/cadastro.html?plano=me" class="btn btn-primary btn-block" id="cta-plano-me">Assinar plano ME</a>
       </div>
     </div>
   </div>
@@ -143,9 +145,26 @@
 <footer class="footer">
   <div class="container">
     <span>© 2026 Simplifex. Ferramenta de apoio fiscal — não substitui a orientação de um contador.</span>
-    <span><a href="/login.html">Entrar</a> · <a href="/cadastro.html">Criar conta</a></span>
+    <span><a href="/login.html" data-nav="deslogado">Entrar</a> · <a href="/cadastro.html" data-nav="deslogado">Criar conta</a></span>
   </div>
 </footer>
 
+<script src="/assets/js/config.js"></script>
+<script type="module">
+  import { atualizarNavSessao, usuarioAtual } from '/assets/js/auth.js';
+
+  // Só ajusta o que aparece no menu conforme a sessão — NUNCA desloga
+  // ninguém. A sessão do Supabase fica salva no navegador e continua válida
+  // ao visitar esta página normalmente.
+  atualizarNavSessao();
+
+  usuarioAtual().then((user) => {
+    if (!user) return;
+    // Usuário já logado: os botões de "Assinar plano" levam direto para a
+    // tela de assinatura, em vez de mandar de volta para o cadastro.
+    document.getElementById('cta-plano-mei')?.setAttribute('href', '/assinatura.html');
+    document.getElementById('cta-plano-me')?.setAttribute('href', '/assinatura.html');
+  });
+</script>
 </body>
 </html>
