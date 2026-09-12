@@ -59,11 +59,11 @@ Deno.serve(async (req: Request) => {
     // mesmo se essa checagem falhasse — dupla camada de proteção.
     const supabaseCheck = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const { data: assinaturaViva } = await supabaseCheck
-        .from('assinaturas')
-        .select('id, plano_id, status')
-        .eq('user_id', user.id)
-        .in('status', ['authorized', 'pending', 'paused'])
-        .maybeSingle();
+      .from('assinaturas')
+      .select('id, plano_id, status')
+      .eq('user_id', user.id)
+      .in('status', ['authorized', 'pending', 'paused'])
+      .maybeSingle();
 
     if (assinaturaViva) {
       return jsonResponse({

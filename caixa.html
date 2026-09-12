@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caixa — Simplifex</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <a href="/" class="brand"><span class="brand-mark">S</span>Simplifex</a>
+    <nav>
+      <a class="side-link" href="/dashboard.html">Painel</a>
+      <a class="side-link active" href="/caixa.html">Caixa</a>
+      <a class="side-link" href="/calculadora.html">Nova simulação</a>
+      <a class="side-link" href="/recursos.html">Recursos avulsos</a>
+      <a class="side-link" href="/irpf.html">Simulador IRPF</a>
+      <a class="side-link" href="/assinatura.html">Meu plano</a>
+      <a class="side-link" href="#" id="btn-sair">Sair</a>
+    </nav>
+    <div class="side-foot" id="user-nome">—</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h2 style="margin-bottom:4px;">Caixa</h2>
+        <p style="margin:0;">Entradas e saídas do mês — vendas e impostos entram sozinhos; o resto você lança aqui.</p>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat accent-seal">
+        <div class="label">SALDO EM CAIXA</div>
+        <div class="value" id="caixa-saldo">—</div>
+      </div>
+      <div class="stat accent-seal">
+        <div class="label">ENTRADAS DO MÊS</div>
+        <div class="value" id="caixa-entradas">—</div>
+      </div>
+      <div class="stat accent-stamp">
+        <div class="label">SAÍDAS DO MÊS</div>
+        <div class="value" id="caixa-saidas">—</div>
+      </div>
+      <div class="stat accent-gold">
+        <div class="label">IMPOSTOS RESERVADOS</div>
+        <div class="value" id="caixa-impostos-reservados">—</div>
+      </div>
+    </div>
+
+    <section class="card" style="margin-bottom:var(--space-7);">
+      <h3 style="font-size:1rem;">Fluxo de caixa — saldo acumulado no mês</h3>
+      <canvas id="chart-fluxo-caixa" height="90"></canvas>
+    </section>
+
+    <section class="card" style="margin-bottom:var(--space-7);">
+      <h3>Lançar movimento manual</h3>
+      <p style="margin-top:-8px;color:var(--ink-soft);font-size:0.88rem;">Vendas e impostos já entram sozinhos aqui — use este formulário para aportes, retiradas e despesas.</p>
+      <div class="form-error" id="form-movimento-erro"></div>
+      <form id="form-movimento">
+        <div class="grid-2">
+          <div class="field">
+            <label for="tipo-movimento">Tipo</label>
+            <select id="tipo-movimento" name="tipo">
+              <option value="entrada">Entrada</option>
+              <option value="saida">Saída</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="categoria-movimento">Categoria</label>
+            <select id="categoria-movimento" name="categoria"></select>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="valor-movimento">Valor (R$)</label>
+            <input type="number" step="0.01" min="0" id="valor-movimento" name="valor" required placeholder="200.00">
+          </div>
+          <div class="field">
+            <label for="data-movimento">Data</label>
+            <input type="date" id="data-movimento" name="data" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="descricao-movimento">Descrição</label>
+          <input type="text" id="descricao-movimento" name="descricao" placeholder="Ex: Retirada para conta pessoal">
+        </div>
+        <button type="submit" class="btn btn-primary" id="btn-salvar-movimento">Lançar movimento</button>
+        <button type="button" class="btn btn-ghost" id="btn-cancelar-edicao-mov" style="display:none;">Cancelar edição</button>
+      </form>
+    </section>
+
+    <section>
+      <h3>Movimentos do mês</h3>
+      <table>
+        <thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead>
+        <tbody id="tabela-caixa-body"></tbody>
+      </table>
+      <p class="disclaimer">Vendas e impostos entram automaticamente a partir dos seus lançamentos no Painel. O saldo aqui é um controle de caixa simplificado — concilie com seu extrato bancário real.</p>
+    </section>
+  </main>
+</div>
+
+<script src="/assets/js/config.js"></script>
+<script type="module" src="/assets/js/caixa.js"></script>
+</body>
+</html>

@@ -41,10 +41,10 @@ Deno.serve(async (req: Request) => {
 
     // 1. Preço vem SEMPRE do banco — nunca do corpo da requisição.
     const { data: precoRow, error: precoError } = await supabaseAdmin
-        .from('precos_produtos')
-        .select('preco_centavos, descricao')
-        .eq('product', product)
-        .single();
+      .from('precos_produtos')
+      .select('preco_centavos, descricao')
+      .eq('product', product)
+      .single();
     if (precoError || !precoRow) return jsonResponse({ error: 'Produto não configurado' }, 500);
 
     const valorReais = precoRow.preco_centavos / 100;

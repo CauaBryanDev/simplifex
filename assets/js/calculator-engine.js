@@ -44,14 +44,14 @@ async function getParametrosFederais() {
  * Sempre calcula — para MEI, o resultado é sinalizado como referência.
  */
 export async function calcularMercadoria({
-                                           valorCentavos, ufOrigem, ufDestino, consumidorFinal = true,
-                                           contribuinteIcmsDestino = false, regimeTributario = 'MEI'
-                                         }) {
+  valorCentavos, ufOrigem, ufDestino, consumidorFinal = true,
+  contribuinteIcmsDestino = false, regimeTributario = 'MEI'
+}) {
   const detalhe = { tipo: 'MERCADORIA', regras_aplicadas: [], estimativa: regimeTributario === 'MEI' };
 
   if (regimeTributario === 'MEI') {
     detalhe.regras_aplicadas.push(
-        'MEI recolhe ICMS de forma unificada no DAS mensal fixo — o valor abaixo é uma ESTIMATIVA de referência para precificação, não uma cobrança adicional por operação.'
+      'MEI recolhe ICMS de forma unificada no DAS mensal fixo — o valor abaixo é uma ESTIMATIVA de referência para precificação, não uma cobrança adicional por operação.'
     );
   }
 
@@ -66,10 +66,10 @@ export async function calcularMercadoria({
 
   if (mesmoEstado) {
     const { data, error } = await supabase
-        .from('aliquotas_icms_interna')
-        .select('aliquota')
-        .eq('uf', ufOrigem)
-        .single();
+      .from('aliquotas_icms_interna')
+      .select('aliquota')
+      .eq('uf', ufOrigem)
+      .single();
     if (error || !data) throw new Error(`Alíquota interna não encontrada para ${ufOrigem}`);
 
     icmsProprioCentavos = Math.round(valorCentavos * (data.aliquota / 100));
@@ -77,36 +77,36 @@ export async function calcularMercadoria({
     detalhe.aliquota_interna = data.aliquota;
   } else {
     const { data: inter, error: e1 } = await supabase
-        .from('aliquotas_icms_interestadual')
-        .select('aliquota')
-        .eq('uf_origem', ufOrigem)
-        .eq('uf_destino', ufDestino)
-        .single();
+      .from('aliquotas_icms_interestadual')
+      .select('aliquota')
+      .eq('uf_origem', ufOrigem)
+      .eq('uf_destino', ufDestino)
+      .single();
     if (e1 || !inter) throw new Error(`Alíquota interestadual não encontrada: ${ufOrigem} -> ${ufDestino}`);
 
     icmsProprioCentavos = Math.round(valorCentavos * (inter.aliquota / 100));
     detalhe.regras_aplicadas.push(
-        `Operação interestadual ${ufOrigem} -> ${ufDestino}: ICMS próprio ${inter.aliquota}%.`
+      `Operação interestadual ${ufOrigem} -> ${ufDestino}: ICMS próprio ${inter.aliquota}%.`
     );
     detalhe.aliquota_interestadual = inter.aliquota;
 
     if (consumidorFinal && !contribuinteIcmsDestino) {
       const { data: interna, error: e2 } = await supabase
-          .from('aliquotas_icms_interna')
-          .select('aliquota')
-          .eq('uf', ufDestino)
-          .single();
+        .from('aliquotas_icms_interna')
+        .select('aliquota')
+        .eq('uf', ufDestino)
+        .single();
       if (e2 || !interna) throw new Error(`Alíquota interna de destino não encontrada para ${ufDestino}`);
 
       const diferencial = Math.max(0, interna.aliquota - inter.aliquota);
       icmsDifalCentavos = Math.round(valorCentavos * (diferencial / 100));
       detalhe.regras_aplicadas.push(
-          `DIFAL (EC 87/2015): ${interna.aliquota}% (interna destino) − ${inter.aliquota}% (interestadual) = ${diferencial.toFixed(2)}%.`
+        `DIFAL (EC 87/2015): ${interna.aliquota}% (interna destino) − ${inter.aliquota}% (interestadual) = ${diferencial.toFixed(2)}%.`
       );
       detalhe.aliquota_difal = diferencial;
     } else if (contribuinteIcmsDestino) {
       detalhe.regras_aplicadas.push(
-          'Destinatário é contribuinte de ICMS: DIFAL é partilhado conforme partilha vigente — confirme com seu contador.'
+        'Destinatário é contribuinte de ICMS: DIFAL é partilhado conforme partilha vigente — confirme com seu contador.'
       );
     }
   }
@@ -120,13 +120,13 @@ export async function calcularMercadoria({
  * retornava 0 direto e fazia parecer que serviço não calculava nada).
  */
 export async function calcularServico({
-                                        valorCentavos, municipioPrestacao, ufPrestacao, regimeTributario = 'MEI'
-                                      }) {
+  valorCentavos, municipioPrestacao, ufPrestacao, regimeTributario = 'MEI'
+}) {
   const detalhe = { tipo: 'SERVICO', regras_aplicadas: [], estimativa: regimeTributario === 'MEI' };
 
   if (regimeTributario === 'MEI') {
     detalhe.regras_aplicadas.push(
-        'MEI recolhe ISS de forma unificada no DAS mensal fixo — o valor abaixo é uma ESTIMATIVA de referência.'
+      'MEI recolhe ISS de forma unificada no DAS mensal fixo — o valor abaixo é uma ESTIMATIVA de referência.'
     );
   }
 
@@ -136,15 +136,15 @@ export async function calcularServico({
   }
 
   const { data, error } = await supabase
-      .from('aliquotas_iss')
-      .select('aliquota')
-      .eq('municipio', municipioPrestacao)
-      .eq('uf', ufPrestacao)
-      .single();
+    .from('aliquotas_iss')
+    .select('aliquota')
+    .eq('municipio', municipioPrestacao)
+    .eq('uf', ufPrestacao)
+    .single();
 
   if (error || !data) {
     detalhe.regras_aplicadas.push(
-        `Município "${municipioPrestacao}/${ufPrestacao}" não cadastrado — usando alíquota padrão de 5% (teto da LC 116/2003).`
+      `Município "${municipioPrestacao}/${ufPrestacao}" não cadastrado — usando alíquota padrão de 5% (teto da LC 116/2003).`
     );
     const issCentavos = Math.round(valorCentavos * 0.05);
     return { issCentavos, detalhe };
@@ -171,10 +171,10 @@ export async function calcularRetencoes({ valorCentavos, tipoServico, regimeTrib
   }
 
   const { data, error } = await supabase
-      .from('regras_retencao_servico')
-      .select('*')
-      .eq('tipo_servico', tipoServico)
-      .single();
+    .from('regras_retencao_servico')
+    .select('*')
+    .eq('tipo_servico', tipoServico)
+    .single();
 
   if (error || !data) {
     detalhe.regras_aplicadas.push(`Regra de retenção não encontrada para "${tipoServico}".`);
@@ -183,7 +183,7 @@ export async function calcularRetencoes({ valorCentavos, tipoServico, regimeTrib
 
   if (valorCentavos < data.valor_minimo_retencao_centavos) {
     detalhe.regras_aplicadas.push(
-        `Valor abaixo do mínimo de retenção (R$ ${paraReais(data.valor_minimo_retencao_centavos)}) — sem retenção.`
+      `Valor abaixo do mínimo de retenção (R$ ${paraReais(data.valor_minimo_retencao_centavos)}) — sem retenção.`
     );
     return { irrfCentavos: 0, inssCentavos: 0, detalhe };
   }
@@ -196,7 +196,7 @@ export async function calcularRetencoes({ valorCentavos, tipoServico, regimeTrib
   const inssCentavos = Math.round(valorCentavos * (data.inss_pct / 100));
 
   detalhe.regras_aplicadas.push(
-      `${tipoServico}: IRRF ${data.irrf_pct}%, INSS ${data.inss_pct}%. ${data.observacao || ''}`
+    `${tipoServico}: IRRF ${data.irrf_pct}%, INSS ${data.inss_pct}%. ${data.observacao || ''}`
   );
 
   return { irrfCentavos, inssCentavos, detalhe };
@@ -220,7 +220,7 @@ export async function calcularFederais({ valorCentavos, tipo }) {
   const csllCentavos = Math.round(valorCentavos * (csllPct / 100));
 
   detalhe.regras_aplicadas.push(
-      `Estimativa federal (Lucro Presumido): PIS ${params.PIS}%, COFINS ${params.COFINS}%, IRPJ ${irpjPct}%, CSLL ${csllPct}%.`
+    `Estimativa federal (Lucro Presumido): PIS ${params.PIS}%, COFINS ${params.COFINS}%, IRPJ ${irpjPct}%, CSLL ${csllPct}%.`
   );
 
   return { pisCentavos, cofinsCentavos, irpjCentavos, csllCentavos, detalhe };
@@ -299,8 +299,8 @@ export async function calcularEGravarTransacao(transacao, perfil) {
   if (error) throw error;
 
   const total = resultado.icmsProprioCentavos + resultado.icmsDifalCentavos + resultado.issCentavos
-      + resultado.irrfCentavos + resultado.inssCentavos + resultado.pisCentavos
-      + resultado.cofinsCentavos + resultado.irpjCentavos + resultado.csllCentavos;
+    + resultado.irrfCentavos + resultado.inssCentavos + resultado.pisCentavos
+    + resultado.cofinsCentavos + resultado.irpjCentavos + resultado.csllCentavos;
 
   return { ...resultado, totalCentavos: total, detalhe: detalheCompleto };
 }

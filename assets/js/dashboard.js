@@ -57,12 +57,12 @@ function alternarCamposTipo() {
 
 async function carregarBadgePlano() {
   const { data } = await supabase
-      .from('assinaturas')
-      .select('plano_id, status')
-      .eq('user_id', perfil.id)
-      .order('criado_em', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    .from('assinaturas')
+    .select('plano_id, status')
+    .eq('user_id', perfil.id)
+    .order('criado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   const badge = document.getElementById('plan-badge');
   if (!badge) return;
@@ -84,12 +84,12 @@ async function buscarTransacoesDoMes() {
   inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
 
   const { data, error } = await supabase
-      .from('transacoes')
-      .select('*, impostos_calculados(*)')
-      .eq('user_id', perfil.id)
-      .eq('ativo', true)
-      .gte('criado_em', inicioMes.toISOString())
-      .order('criado_em', { ascending: false });
+    .from('transacoes')
+    .select('*, impostos_calculados(*)')
+    .eq('user_id', perfil.id)
+    .eq('ativo', true)
+    .gte('criado_em', inicioMes.toISOString())
+    .order('criado_em', { ascending: false });
 
   if (error) { console.error(error); return []; }
   return (data || []).map(t => ({ ...t, _imp: Array.isArray(t.impostos_calculados) ? t.impostos_calculados[0] : t.impostos_calculados }));
@@ -98,8 +98,8 @@ async function buscarTransacoesDoMes() {
 function somaImpostos(imp) {
   if (!imp) return 0;
   return (imp.icms_proprio_centavos || 0) + (imp.icms_difal_centavos || 0) + (imp.iss_centavos || 0)
-      + (imp.irrf_centavos || 0) + (imp.inss_centavos || 0) + (imp.pis_centavos || 0)
-      + (imp.cofins_centavos || 0) + (imp.irpj_centavos || 0) + (imp.csll_centavos || 0);
+    + (imp.irrf_centavos || 0) + (imp.inss_centavos || 0) + (imp.pis_centavos || 0)
+    + (imp.cofins_centavos || 0) + (imp.irpj_centavos || 0) + (imp.csll_centavos || 0);
 }
 
 function renderizarEstatisticas(transacoes) {
@@ -137,14 +137,14 @@ function renderizarDetalhamentoPeriodo(detalhado, total) {
   const container = document.getElementById('detalhamento-periodo');
   if (!container) return;
   const linhas = Object.entries(detalhado)
-      .filter(([, valor]) => valor > 0)
-      .map(([nome, valor]) => `
+    .filter(([, valor]) => valor > 0)
+    .map(([nome, valor]) => `
       <div class="receipt-row"><span>${nome}</span><span>R$ ${paraReais(valor)}</span></div>
     `).join('');
 
   container.innerHTML = linhas
-      ? linhas + `<div class="receipt-row total"><span>Total</span><span>R$ ${paraReais(total)}</span></div>`
-      : `<p style="color:var(--ink-soft);margin:0;">Nenhum imposto aplicável nos lançamentos deste mês ainda.</p>`;
+    ? linhas + `<div class="receipt-row total"><span>Total</span><span>R$ ${paraReais(total)}</span></div>`
+    : `<p style="color:var(--ink-soft);margin:0;">Nenhum imposto aplicável nos lançamentos deste mês ainda.</p>`;
 }
 
 function renderizarTabela(transacoes) {
@@ -165,8 +165,8 @@ function renderizarTabela(transacoes) {
       <td>${new Date(t.criado_em).toLocaleDateString('pt-BR')}</td>
       <td>${t.tipo === 'MERCADORIA' ? 'Mercadoria' : 'Serviço'}</td>
       <td>${escapeHtml(t.descricao || '—')}</td>
-      <td>R$ ${paraReais(t.valor_centavos)}</td>
-      <td>${imp ? `R$ ${paraReais(totalImp)}` : '<span class="tag tag-gold">calculando…</span>'}</td>
+      <td class="num">R$ ${paraReais(t.valor_centavos)}</td>
+      <td class="num">${imp ? `R$ ${paraReais(totalImp)}` : '<span class="tag tag-gold">calculando…</span>'}</td>
       <td>${statusTag(t.status)}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-ghost" data-acao="detalhar" data-id="${t.id}" style="padding:4px 10px;font-size:0.78rem;">Ver</button>
@@ -219,8 +219,8 @@ function abrirModalDetalhe(t) {
   ].filter(([, v]) => v > 0);
 
   const memoria = (imp?.detalhe_json?.partes || [])
-      .flatMap(p => p.regras_aplicadas || [])
-      .map(r => `<li>${escapeHtml(r)}</li>`).join('');
+    .flatMap(p => p.regras_aplicadas || [])
+    .map(r => `<li>${escapeHtml(r)}</li>`).join('');
 
   corpo.innerHTML = `
     <p style="margin-bottom:8px;"><strong>${escapeHtml(t.descricao || (t.tipo === 'MERCADORIA' ? 'Venda de mercadoria' : 'Prestação de serviço'))}</strong></p>
@@ -331,19 +331,19 @@ async function onSubmitTransacao(ev) {
     let transacao;
     if (transacaoEmEdicao) {
       const { data, error } = await supabase
-          .from('transacoes')
-          .update(payload)
-          .eq('id', transacaoEmEdicao)
-          .select()
-          .single();
+        .from('transacoes')
+        .update(payload)
+        .eq('id', transacaoEmEdicao)
+        .select()
+        .single();
       if (error) throw error;
       transacao = data;
     } else {
       const { data, error } = await supabase
-          .from('transacoes')
-          .insert(payload)
-          .select()
-          .single();
+        .from('transacoes')
+        .insert(payload)
+        .select()
+        .single();
       if (error) throw error;
       transacao = data;
     }
@@ -370,17 +370,37 @@ function renderizarGraficos(transacoes) {
   const impostos = transacoes.reduce((s, t) => s + somaImpostos(t._imp), 0);
   const lucro = Math.max(0, faturamento - impostos);
 
-  // Gráfico 1 — Faturamento x Lucro x Impostos (composição, não soma dupla)
+  // Gráfico 1 — Faturamento x Lucro x Impostos: o anel mostra a composição
+  // (Lucro + Impostos, que somam o Faturamento — sem contar valor em dobro)
+  // e o texto central mostra o Faturamento total, deixando as 3 métricas visíveis.
   const ctx1 = document.getElementById('chart-composicao');
   if (ctx1) {
     chartComposicao?.destroy();
+    const centroTextoPlugin = {
+      id: 'centroTexto',
+      afterDraw(chart) {
+        const { ctx, chartArea: { left, right, top, bottom } } = chart;
+        const x = (left + right) / 2, y = (top + bottom) / 2;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '600 11px Inter, sans-serif';
+        ctx.fillStyle = '#33475C';
+        ctx.fillText('FATURAMENTO', x, y - 12);
+        ctx.font = '600 18px Fraunces, serif';
+        ctx.fillStyle = '#1C2B3A';
+        ctx.fillText(`R$ ${paraReais(faturamento)}`, x, y + 10);
+        ctx.restore();
+      },
+    };
     chartComposicao = new Chart(ctx1, {
-      type: 'pie',
+      type: 'doughnut',
       data: {
         labels: ['Lucro (após impostos)', 'Impostos'],
-        datasets: [{ data: [lucro / 100, impostos / 100], backgroundColor: ['#2E6F4C', '#B5482F'] }],
+        datasets: [{ data: [lucro / 100, impostos / 100], backgroundColor: ['#2E6F4C', '#B5482F'], borderWidth: 0 }],
       },
-      options: { plugins: { legend: { position: 'bottom' } } },
+      options: { cutout: '68%', plugins: { legend: { position: 'bottom' } } },
+      plugins: [centroTextoPlugin],
     });
   }
 

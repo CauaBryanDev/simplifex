@@ -51,13 +51,13 @@ Deno.serve(async (req: Request) => {
 
     // 1. Busca a assinatura viva do usuário (pending/authorized/paused)
     const { data: atual, error: findError } = await supabaseAdmin
-        .from('assinaturas')
-        .select('*')
-        .eq('user_id', user.id)
-        .in('status', ['authorized', 'pending', 'paused'])
-        .order('criado_em', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      .from('assinaturas')
+      .select('*')
+      .eq('user_id', user.id)
+      .in('status', ['authorized', 'pending', 'paused'])
+      .order('criado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (findError) return jsonResponse({ error: 'Erro ao consultar assinatura atual' }, 500);
 
@@ -94,9 +94,9 @@ Deno.serve(async (req: Request) => {
 
     // 3. Atualiza a assinatura local (mesma linha — não cria uma nova)
     const { error: updateError } = await supabaseAdmin
-        .from('assinaturas')
-        .update({ plano_id: novo_plano_id })
-        .eq('id', atual.id);
+      .from('assinaturas')
+      .update({ plano_id: novo_plano_id })
+      .eq('id', atual.id);
     if (updateError) return jsonResponse({ error: 'Falha ao gravar novo plano localmente' }, 500);
 
     // 4. Registra no histórico, para auditoria e suporte

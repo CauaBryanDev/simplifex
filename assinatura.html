@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meu plano — Simplifex</title>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu plano — Simplifex</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body>
 
@@ -14,6 +14,7 @@
     <a href="/" class="brand"><span class="brand-mark">S</span>Simplifex</a>
     <nav>
       <a class="side-link" href="/dashboard.html">Painel</a>
+      <a class="side-link" href="/caixa.html">Caixa</a>
       <a class="side-link" href="/calculadora.html">Nova simulação</a>
       <a class="side-link" href="/recursos.html">Recursos avulsos</a>
       <a class="side-link" href="/irpf.html">Simulador IRPF</a>
@@ -109,13 +110,13 @@
 
   async function carregarStatus(userId) {
     const { data } = await supabase
-            .from('assinaturas')
-            .select('*')
-            .eq('user_id', userId)
-            .in('status', ['authorized', 'pending', 'paused'])
-            .order('criado_em', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+      .from('assinaturas')
+      .select('*')
+      .eq('user_id', userId)
+      .in('status', ['authorized', 'pending', 'paused'])
+      .order('criado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     planoAtual = data?.plano_id || null;
     const el = document.getElementById('assinatura-status');
@@ -158,10 +159,10 @@
 
   async function carregarHistorico(userId) {
     const { data } = await supabase
-            .from('assinatura_historico')
-            .select('*')
-            .eq('user_id', userId)
-            .order('data_alteracao', { ascending: false });
+      .from('assinatura_historico')
+      .select('*')
+      .eq('user_id', userId)
+      .order('data_alteracao', { ascending: false });
 
     const tbody = document.getElementById('historico-body');
     if (!data || data.length === 0) {
